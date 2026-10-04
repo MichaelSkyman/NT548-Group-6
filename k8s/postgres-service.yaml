@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: devops-app
+spec:
+  type: ExternalName
+  externalName: minhnhien-postgres.cdoai8a2krba.ap-southeast-1.rds.amazonaws.com
