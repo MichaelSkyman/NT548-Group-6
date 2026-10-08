@@ -1,84 +1,52 @@
-# DevOps Learning Platform — Backend
+# DevOps Learning Platform — Frontend
 
-Flask REST API cho mô hình **Guest học tự do / Admin quản trị nội dung**, được dựng lại từ đặc tả `backend-guest-admin-architecture.md` và giữ tương thích với luồng quiz của DevOps-Project-36.
+Giao diện web (React + Vite) cho nền tảng học DevOps theo mô hình **Guest học tự do / Admin quản trị nội dung**. Frontend gọi tới Flask REST API của backend qua tiền tố `/api`.
 
-## Chức năng
+## Chức năng chính
 
-- Guest không cần tài khoản: xem topic, nội dung học, nhận quiz và nộp bài.
-- Quiz đảo câu hỏi/đáp án nhưng không trả `correct_answer`; `quiz_token` có chữ ký giúp server chấm đúng và chống sửa dữ liệu.
-- Admin đăng nhập JWT, logout vô hiệu hóa token đang tồn tại.
-- Admin CRUD Topic, CRUD Question, bulk import dạng JSON và xem dashboard thống kê.
-- PostgreSQL, Alembic migration, seed idempotent và health check.
-- Kiến trúc Route → Service → Repository → Model.
+- **Guest**: xem danh sách topic, đọc nội dung học, làm quiz và nộp bài nhận điểm.
+- **Admin**: đăng nhập JWT, xem dashboard, quản lý (CRUD) topic và câu hỏi.
 
-## Chạy backend
+## ** Hiện tại chỉ mới cấu hình kết nối frontend vs backend th 
+## Cấu trúc thư mục
 
-Yêu cầu Python 3.12+ và PostgreSQL đang hoạt động.
+```
+frontend/
+├─ src/
+│  ├─ api/client.js        # Gom toàn bộ lời gọi API (publicApi, adminApi, token)
+│  ├─ pages/
+│  │  ├─ TopicsPage.jsx        # Danh sách topic
+│  │  ├─ TopicDetailPage.jsx   # Nội dung 1 topic
+│  │  ├─ QuizPage.jsx          # Làm & nộp quiz
+│  │  └─ admin/
+│  │     ├─ LoginPage.jsx      # Đăng nhập admin
+│  │     └─ DashboardPage.jsx  # Trang quản trị
+│  ├─ App.jsx / main.jsx    # Khởi tạo app & routing
+│  └─ *.css
+└─ vite.config.js          # Dev server (port 3000) + proxy /api -> backend
+```
+
+## Chạy frontend
+
+Yêu cầu Node.js 18+.
 
 ```bash
-copy .env.example .env
-# Cập nhật DATABASE_URL, SECRET_KEY, JWT_SECRET_KEY và ADMIN_PASSWORD
-cd backend
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements-dev.txt
-flask --app run.py db upgrade
-python seed.py
-flask --app run.py run --port 8000
+cd frontend
+npm install
+npm run dev
 ```
 
-API chạy tại `http://localhost:8000`. Kiểm tra:
+App chạy tại `http://localhost:3000`.
 
-```bash
-curl http://localhost:8000/api/health
-curl http://localhost:8000/api/topics
-```
+## Kết nối backend
 
-## API chính
+- Khi dev, mọi request `/api/...` được **proxy** sang Flask ở `http://localhost:8000`
+  (cấu hình trong `vite.config.js`), nên không lo CORS.
+- **Phải bật backend trước** (xem README ở thư mục gốc để chạy Flask + PostgreSQL).
+- Muốn trỏ API sang địa chỉ khác thì đặt biến `VITE_API_BASE` trong file `.env`.
 
-Public:
+## Kiểm tra đã kết nối backend chưa
 
-| Method | Endpoint | Chức năng |
-|---|---|---|
-| GET | `/api/health` | Health của app và database |
-| GET | `/api/topics` | Danh sách topic |
-| GET | `/api/topics/{slug}` | Nội dung topic |
-| GET | `/api/quiz/{slug}` | Sinh quiz và `quiz_token` |
-| POST | `/api/quiz/submit` | Chấm quiz |
-
-Admin (trừ login, các route cần `Authorization: Bearer <token>`):
-
-| Method | Endpoint | Chức năng |
-|---|---|---|
-| POST | `/api/admin/login` | Đăng nhập |
-| POST | `/api/admin/logout` | Đăng xuất và vô hiệu hóa token |
-| GET | `/api/admin/dashboard` | Tổng quan nội dung |
-| GET/POST | `/api/admin/topics` | Liệt kê/tạo topic |
-| GET/PUT/DELETE | `/api/admin/topics/{id}` | Xem/sửa/xóa topic |
-| GET/POST | `/api/admin/questions` | Lọc/liệt kê/tạo câu hỏi |
-| GET/PUT/DELETE | `/api/admin/questions/{id}` | Xem/sửa/xóa câu hỏi |
-| POST | `/api/admin/questions/bulk` | Tạo nhiều câu hỏi nguyên tử |
-
-Ví dụ đăng nhập:
-
-```bash
-curl -X POST http://localhost:8000/api/admin/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"your-password"}'
-```
-
-Payload nộp quiz dùng token nhận từ endpoint sinh quiz:
-
-```json
-{
-  "quiz_token": "signed-token",
-  "answers": {"12": 0, "15": 2}
-}
-```
-
-## Kiểm thử
-
-```bash
-cd backend
-pytest
-```
+1. Bật backend (port 8000) và frontend (port 3000).
+2. Mở `http://localhost:3000`, trang hiển thị được danh sách topic là OK.
+3. Hoặc mở DevTools (F12) → tab **Network**, các request `/api/...` trả về **200**.
