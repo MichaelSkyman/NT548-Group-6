@@ -7,6 +7,7 @@ Giao diện web (React + Vite) cho nền tảng học DevOps theo mô hình **Gu
 - **Guest**: xem danh sách topic, đọc nội dung học, làm quiz và nộp bài nhận điểm.
 - **Admin**: đăng nhập JWT, xem dashboard, quản lý (CRUD) topic và câu hỏi.
 
+## ** Hiện tại chỉ mới cấu hình kết nối frontend vs backend th 
 ## Cấu trúc thư mục
 
 ```
