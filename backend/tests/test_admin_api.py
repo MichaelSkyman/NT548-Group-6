@@ -1,6 +1,9 @@
 def test_admin_routes_require_authentication(client):
     assert client.get("/api/admin/topics").status_code == 401
     assert client.post("/api/admin/questions", json={}).status_code == 401
+    assert client.get("/api/admin/topics/1").status_code == 401
+    assert client.put("/api/admin/topics/1", json={"name": "tampered"}).status_code == 401
+    assert client.delete("/api/admin/topics/1").status_code == 401
 
 
 def test_login_rejects_invalid_password(client):
@@ -19,6 +22,7 @@ def test_admin_can_manage_topic(client, auth_headers):
             "slug": "terraform",
             "description": "Infrastructure as code",
             "content": "Terraform learning content",
+            "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
         },
     )
     assert created.status_code == 201
@@ -31,9 +35,24 @@ def test_admin_can_manage_topic(client, auth_headers):
     )
     assert updated.status_code == 200
     assert updated.get_json()["description"] == "Updated"
+    assert updated.get_json()["video_url"] == "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
     deleted = client.delete(f"/api/admin/topics/{topic_id}", headers=auth_headers)
     assert deleted.status_code == 204
+
+
+def test_topic_rejects_non_youtube_video_url(client, auth_headers):
+    response = client.post(
+        "/api/admin/topics",
+        headers=auth_headers,
+        json={
+            "name": "Kubernetes",
+            "slug": "kubernetes",
+            "description": "Kubernetes fundamentals",
+            "video_url": "https://vimeo.com/12345",
+        },
+    )
+    assert response.status_code == 400
 
 
 def test_admin_can_create_and_filter_questions(client, auth_headers):

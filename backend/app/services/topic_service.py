@@ -1,4 +1,5 @@
 import re
+from urllib.parse import parse_qs, urlparse
 
 from sqlalchemy.exc import IntegrityError
 
@@ -8,6 +9,20 @@ from ..models import Topic
 from ..repositories import TopicRepository
 
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be", "www.youtu.be"}
+
+
+def is_youtube_url(value):
+    parsed = urlparse(value)
+    if parsed.scheme != "https" or parsed.hostname not in YOUTUBE_HOSTS:
+        return False
+    if parsed.hostname.endswith("youtu.be"):
+        return bool(parsed.path.strip("/"))
+    if parsed.path == "/watch":
+        return bool(parse_qs(parsed.query).get("v", [""])[0])
+    return parsed.path.startswith(("/embed/", "/shorts/", "/live/")) and bool(
+        parsed.path.rsplit("/", 1)[-1]
+    )
 
 
 class TopicService:
@@ -68,7 +83,7 @@ class TopicService:
                 raise ApiError("Missing required fields", details={"fields": missing})
 
         values = {}
-        for field in ("name", "slug", "description", "content"):
+        for field in ("name", "slug", "description", "content", "video_url"):
             if field in data:
                 value = data[field]
                 if not isinstance(value, str):
@@ -76,6 +91,12 @@ class TopicService:
                 value = value.strip()
                 if field in required and not value:
                     raise ApiError(f"{field} must not be empty")
+                if field == "video_url":
+                    if not value:
+                        values[field] = None
+                        continue
+                    if not is_youtube_url(value):
+                        raise ApiError("video_url must be a valid HTTPS YouTube URL")
                 values[field] = value
         if "slug" in values and not SLUG_PATTERN.fullmatch(values["slug"]):
             raise ApiError("slug must contain lowercase letters, numbers, and hyphens only")

@@ -2,6 +2,7 @@ def test_public_topics_are_available_without_login(client):
     response = client.get("/api/topics")
     assert response.status_code == 200
     assert response.get_json()[0]["id"] == "docker"
+    assert response.get_json()[0]["video_url"] is None
 
 
 def test_public_quiz_never_leaks_correct_answer(client):
