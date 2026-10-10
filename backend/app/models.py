@@ -18,6 +18,9 @@ class Topic(db.Model):
     slug = db.Column(db.String(100), nullable=False, unique=True, index=True)
     description = db.Column(db.Text, nullable=False)
     content = db.Column(db.Text, nullable=False, default="")
+    # Optional because a topic may contain text only. The service layer limits
+    # values to YouTube URLs before they reach this column.
+    video_url = db.Column(db.String(500), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
     updated_at = db.Column(
         db.DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow
@@ -34,6 +37,7 @@ class Topic(db.Model):
             "name": self.name,
             "description": self.description,
             "content": self.content,
+            "video_url": self.video_url,
         }
 
     def to_admin_dict(self, include_count=False):
@@ -43,6 +47,7 @@ class Topic(db.Model):
             "slug": self.slug,
             "description": self.description,
             "content": self.content,
+            "video_url": self.video_url,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }

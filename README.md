@@ -1,10 +1,11 @@
 # DevOps Learning Platform — Backend
 
-Flask REST API cho mô hình **Guest học tự do / Admin quản trị nội dung**, được dựng lại từ đặc tả `backend-guest-admin-architecture.md` và giữ tương thích với luồng quiz của DevOps-Project-36.
+Flask REST API cho mô hình **Guest học tự do / Admin quản trị nội dung**, được dựng lại từ đặc tả `backend-guest-admin-architecture.md`
 
 ## Chức năng
 
 - Guest không cần tài khoản: xem topic, nội dung học, nhận quiz và nộp bài.
+- Topic có `content` dạng text và `video_url` tùy chọn; nếu có video thì chỉ chấp nhận URL HTTPS từ YouTube.
 - Quiz đảo câu hỏi/đáp án nhưng không trả `correct_answer`; `quiz_token` có chữ ký giúp server chấm đúng và chống sửa dữ liệu.
 - Admin đăng nhập JWT, logout vô hiệu hóa token đang tồn tại.
 - Admin CRUD Topic, CRUD Question, bulk import dạng JSON và xem dashboard thống kê.
@@ -58,6 +59,8 @@ Admin (trừ login, các route cần `Authorization: Bearer <token>`):
 | GET/POST | `/api/admin/questions` | Lọc/liệt kê/tạo câu hỏi |
 | GET/PUT/DELETE | `/api/admin/questions/{id}` | Xem/sửa/xóa câu hỏi |
 | POST | `/api/admin/questions/bulk` | Tạo nhiều câu hỏi nguyên tử |
+
+Các endpoint `/api/admin/*` (ngoại trừ `/login`) bắt buộc Bearer JWT của admin hợp lệ. Guest không thể dùng đường dẫn hoặc ID trên admin API để xem/sửa/xóa dữ liệu.
 
 Ví dụ đăng nhập:
 
