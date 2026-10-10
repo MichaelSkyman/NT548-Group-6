@@ -24,7 +24,7 @@
 //   (c) điền thân các hàm trong publicApi và adminApi (chỉ là gọi request)
 // =====================================================================
 
-// Dùng proxy "/api" trong vite.config.js (trỏ sang Flask cổng 5000).
+// Dùng proxy "/api" trong vite.config.js (trỏ sang Flask cổng 8000).
 // Muốn trỏ nơi khác thì đặt VITE_API_BASE trong file .env.
 const BASE = import.meta.env.VITE_API_BASE || ''
 
@@ -70,7 +70,7 @@ async function request(path, { auth = false, ...options } = {}) {
     try {
       const body = await res.json()
       message = body.error || message   // backend để câu lỗi ở khóa "error"
-    } catch (_) { /* body không phải JSON thì thôi */ }
+    } catch { /* body không phải JSON thì thôi */ }
     throw new Error(message)
   }
   if (res.status === 204) return null
@@ -125,7 +125,7 @@ export const adminApi = {
   logout: async () => {
     try {
       await request('/api/admin/logout', { method: 'POST', auth: true })
-    } catch (_) {
+    } catch {
       // ignore error
     } finally {
       token.clear()

@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Env (VITE_* bị nhúng vào bundle lúc build, không để secret ở đây)
+.env
+.env.*
+!.env.example
