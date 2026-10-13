@@ -1,24 +1,24 @@
-# DB Subnet Group
+# DB Subnet Group trải dài trên 2 AZs của Database Subnets
 resource "aws_db_subnet_group" "db_group" {
   name       = "${var.project_name}-db-subnet-group"
-  subnet_ids = [aws_subnet.private_db.id]
+  subnet_ids = [aws_subnet.private_db_1a.id, aws_subnet.private_db_1b.id]
 
   tags = {
     Name = "${var.project_name}-db-subnet-group"
   }
 }
 
-# Security Group cho PostgreSQL (Port 5432)
+# Security Group cho PostgreSQL (chỉ cho phép traffic từ các EKS App Subnets port 5432)
 resource "aws_security_group" "db_sg" {
   name        = "${var.project_name}-db-sg"
-  description = "Security group cho PostgreSQL database"
+  description = "Security group cho RDS PostgreSQL"
   vpc_id      = aws_vpc.main.id
 
   ingress {
     from_port   = 5432
     to_port     = 5432
     protocol    = "tcp"
-    cidr_blocks = [var.public_subnet_cidr]
+    cidr_blocks = [aws_subnet.private_app_1a.cidr_block, aws_subnet.private_app_1b.cidr_block]
   }
 
   egress {

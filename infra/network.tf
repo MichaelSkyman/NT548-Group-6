@@ -1,4 +1,4 @@
-# 1. Tạo VPC
+# VPC chính
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
@@ -9,8 +9,8 @@ resource "aws_vpc" "main" {
   }
 }
 
-# 2. Tạo Internet Gateway
-resource "aws_internet_gateway" "gw" {
+# Internet Gateway
+resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main.id
 
   tags = {
@@ -18,34 +18,100 @@ resource "aws_internet_gateway" "gw" {
   }
 }
 
-# 3. Public Subnet (cho Web/Backend/Load Balancer)
-resource "aws_subnet" "public" {
+# Public Subnets (2 AZs cho ALB & NAT Gateway)
+resource "aws_subnet" "public_1a" {
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = var.public_subnet_cidr
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "ap-south-1a"
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "${var.project_name}-public-subnet"
+    Name                                     = "${var.project_name}-public-1a"
+    "kubernetes.io/role/elb"                 = "1"
+    "kubernetes.io/cluster/${var.project_name}" = "shared"
   }
 }
 
-# 4. Private Subnet (chỉ cho Database)
-resource "aws_subnet" "private_db" {
-  vpc_id     = aws_vpc.main.id
-  cidr_block = var.db_subnet_cidr
+resource "aws_subnet" "public_1b" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.2.0/24"
+  availability_zone       = "ap-south-1b"
+  map_public_ip_on_launch = true
 
   tags = {
-    Name = "${var.project_name}-db-subnet"
+    Name                                     = "${var.project_name}-public-1b"
+    "kubernetes.io/role/elb"                 = "1"
+    "kubernetes.io/cluster/${var.project_name}" = "shared"
   }
 }
 
-# 5. Route Table cho Public Subnet ra Internet
+# Elastic IP & NAT Gateway cho Private Subnet
+resource "aws_eip" "nat" {
+  domain = "vpc"
+}
+
+resource "aws_nat_gateway" "nat" {
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.public_1a.id
+
+  tags = {
+    Name = "${var.project_name}-nat"
+  }
+}
+
+# Private Subnets cho EKS Worker Nodes (App Tier)
+resource "aws_subnet" "private_app_1a" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.10.0/24"
+  availability_zone = "ap-south-1a"
+
+  tags = {
+    Name                                     = "${var.project_name}-private-app-1a"
+    "kubernetes.io/role/internal-elb"        = "1"
+    "kubernetes.io/cluster/${var.project_name}" = "shared"
+  }
+}
+
+resource "aws_subnet" "private_app_1b" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.11.0/24"
+  availability_zone = "ap-south-1b"
+
+  tags = {
+    Name                                     = "${var.project_name}-private-app-1b"
+    "kubernetes.io/role/internal-elb"        = "1"
+    "kubernetes.io/cluster/${var.project_name}" = "shared"
+  }
+}
+
+# Private Subnets cho RDS PostgreSQL (Database Tier)
+resource "aws_subnet" "private_db_1a" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.20.0/24"
+  availability_zone = "ap-south-1a"
+
+  tags = {
+    Name = "${var.project_name}-private-db-1a"
+  }
+}
+
+resource "aws_subnet" "private_db_1b" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.21.0/24"
+  availability_zone = "ap-south-1b"
+
+  tags = {
+    Name = "${var.project_name}-private-db-1b"
+  }
+}
+
+# Route Tables
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.gw.id
+    gateway_id = aws_internet_gateway.igw.id
   }
 
   tags = {
@@ -53,7 +119,35 @@ resource "aws_route_table" "public" {
   }
 }
 
-resource "aws_route_table_association" "public" {
-  subnet_id      = aws_subnet.public.id
+resource "aws_route_table_association" "public_1a" {
+  subnet_id      = aws_subnet.public_1a.id
   route_table_id = aws_route_table.public.id
+}
+
+resource "aws_route_table_association" "public_1b" {
+  subnet_id      = aws_subnet.public_1b.id
+  route_table_id = aws_route_table.public.id
+}
+
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.nat.id
+  }
+
+  tags = {
+    Name = "${var.project_name}-private-rt"
+  }
+}
+
+resource "aws_route_table_association" "private_app_1a" {
+  subnet_id      = aws_subnet.private_app_1a.id
+  route_table_id = aws_route_table.private.id
+}
+
+resource "aws_route_table_association" "private_app_1b" {
+  subnet_id      = aws_subnet.private_app_1b.id
+  route_table_id = aws_route_table.private.id
 }
