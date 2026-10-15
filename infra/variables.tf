@@ -1,7 +1,7 @@
 variable "aws_region" {
   description = "AWS Region de deploy infrastructure"
   type        = string
-  default     = "ap-south-1"
+  default     = "ap-southeast-1"
 }
 
 variable "project_name" {
@@ -25,12 +25,11 @@ variable "vpc_cidr" {
 variable "db_username" {
   description = "Database administrator username"
   type        = string
-  default     = "admin"
+  default     = "postgres"
 }
 
 variable "db_password" {
   description = "Database administrator password"
   type        = string
   sensitive   = true
-  default     = "Admin123456"
 }
