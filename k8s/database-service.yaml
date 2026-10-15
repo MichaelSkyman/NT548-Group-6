@@ -1,3 +1,4 @@
+# externalName = terraform -chdir=infra output -raw rds_address
 apiVersion: v1
 kind: Service
 metadata:
@@ -5,4 +6,4 @@ metadata:
   namespace: devops-app
 spec:
   type: ExternalName
-  externalName: minhnhien-postgres.cdoai8a2krba.ap-southeast-1.rds.amazonaws.com
+  externalName: <RDS_ADDRESS>

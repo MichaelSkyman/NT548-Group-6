@@ -1,0 +1,17 @@
+# Cấu hình không nhạy cảm cho backend và Job migration.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: devops-app
+data:
+  # Service ExternalName "postgres" trỏ tới RDS (database-service.yaml)
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_NAME: devops_learning
+  # Frontend và API cùng domain qua ALB nên không cần giới hạn CORS chặt
+  ALLOWED_ORIGINS: "*"
+  FLASK_DEBUG: "0"
+  JWT_ACCESS_TOKEN_MINUTES: "60"
+  QUIZ_SIZE: "15"
+  QUIZ_TOKEN_MAX_AGE: "3600"
