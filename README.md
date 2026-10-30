@@ -7,6 +7,15 @@ Giao diện web (React + Vite) cho nền tảng học DevOps theo mô hình **Gu
 - **Guest**: xem danh sách topic, đọc nội dung học, làm quiz và nộp bài nhận điểm.
 - **Admin**: đăng nhập JWT, xem dashboard, quản lý (CRUD) topic và câu hỏi.
 
+### Tài khoản admin (mặc định — môi trường học/demo)
+
+Admin được tạo bởi `backend/seed.py` theo biến trong `.env`. Giá trị mặc định dùng để demo:
+
+- Tài khoản: `admin`
+- Mật khẩu: `182806`
+
+> ⚠️ Đây là thông tin dev/demo. Khi deploy thật, hãy đổi `ADMIN_USERNAME` / `ADMIN_PASSWORD` trong `.env` (hoặc `k8s/secrets.yaml`) và **không commit mật khẩu thật** lên git.
+
 ## Trạng thái hiện tại
 
 - ✅ **Kết nối frontend ↔ backend**: `api/client.js` + proxy `/api` (dev) / Ingress (prod).
