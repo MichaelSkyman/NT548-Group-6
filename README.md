@@ -12,7 +12,37 @@ Giao diện web (React + Vite) cho nền tảng học DevOps theo mô hình **Gu
 - ✅ **Kết nối frontend ↔ backend**: `api/client.js` + proxy `/api` (dev) / Ingress (prod).
 - ✅ **Tầng logic (headless hooks)**: data fetching, state quiz, đăng nhập, dashboard, CRUD admin — không dính giao diện.
 - ✅ **Đóng gói triển khai**: `Dockerfile` (multi-stage) + `nginx.conf` (SPA fallback, health check) + `.env.example`.
-- ⏳ **Giao diện (UI) của các trang**: đang để stub chờ nhóm chốt thiết kế. Khi có UI, mỗi trang chỉ cần gọi hook tương ứng rồi render.
+- ✅ **Giao diện (UI) đầy đủ**: toàn bộ trang Guest + Admin đã dựng bằng **Tailwind CSS** theo bộ token trong `DESIGN.md` — không còn stub.
+
+## Giao diện đã bổ sung (bản `feature-frontend`)
+
+Dựng toàn bộ UI từ bản thiết kế, nối trực tiếp với các `hooks/` + `api/client.js` sẵn có.
+
+**Khu Guest (công khai):**
+
+- **Danh sách chủ đề** — hero, ô tìm kiếm lọc theo tên/mô tả, lưới thẻ chủ đề (tự gợi ý icon/nhóm theo tên, badge số câu hỏi/video), có trạng thái tải/lỗi/rỗng.
+- **Chi tiết chủ đề** — nhúng video YouTube, render **nội dung Markdown an toàn** (marked + DOMPurify), **mục lục "Nội dung trang"** tự sinh từ heading, nút làm quiz.
+- **Quiz** — làm từng câu, bảng nhảy câu (navigator), thanh tiến độ, nộp bài; **màn Kết quả** (vòng điểm %, 3 ô thống kê, ôn lại đáp án đã chọn).
+- **Trang 404** có ô tìm kiếm + gợi ý chủ đề phổ biến.
+- Navbar + footer công khai dùng chung.
+
+**Khu Admin (cần đăng nhập JWT):**
+
+- **Đăng nhập** + bảo vệ route (`ProtectedRoute`); **đăng xuất** quay về trang công khai.
+- **Dashboard** — 4 ô thống kê, biểu đồ câu hỏi/chủ đề, bảng trạng thái chủ đề.
+- **Quản lý chủ đề** — bảng + form tạo/sửa (ẩn tới khi bấm, tự cuộn tới) + xoá.
+- **Quản lý câu hỏi** — lọc theo chủ đề, tìm kiếm, bảng; form 4 đáp án (chọn đáp án đúng, **kiểm tra trùng/không để trống phía client**); **nhập hàng loạt JSON** (có nút "Chèn mẫu").
+- **Kiến trúc hệ thống** — sơ đồ 3-tier trên EKS (đặt trong khu admin).
+- **System Status** — gọi `GET /api/health`, hiển thị tình trạng Backend/Database + payload.
+- Sidebar + topbar + footer admin.
+
+**Hạ tầng UI thêm vào:**
+
+- **Tailwind CSS v3** + `@tailwindcss/forms` + PostCSS; **design tokens** (màu/typography/spacing/radius) lấy từ `DESIGN.md` trong `tailwind.config.js`.
+- Font **Geist** + **JetBrains Mono** + **Material Symbols** (nạp trong `index.html`).
+- **marked** + **dompurify** để render Markdown an toàn.
+- Component dùng chung: `Brand`, `Icon`, `StateBlock` (loading/error/empty), `guest/GuestFooter`, `quiz/QuizResult`.
+- `api/client.js` thêm `getHealth()`; `App.jsx` thêm route: `/architecture` (nằm trong `/admin/architecture`), `/admin/topics`, `/admin/questions`, `/admin/system-status`, và trang 404.
 
 ## Cấu trúc thư mục
 
@@ -23,7 +53,9 @@ frontend/
 ├─ .dockerignore
 ├─ .env.example           # Mẫu biến VITE_API_BASE
 ├─ vite.config.js         # Dev server (port 3000) + proxy /api -> backend :8000
-├─ index.html
+├─ tailwind.config.js     # Design tokens (theo DESIGN.md) + @tailwindcss/forms
+├─ postcss.config.js      # Tailwind + autoprefixer
+├─ index.html             # Nạp font Geist / JetBrains Mono / Material Symbols
 └─ src/
    ├─ api/
    │  └─ client.js        # Gom toàn bộ lời gọi API (publicApi, adminApi, token)
@@ -38,25 +70,37 @@ frontend/
    │  ├─ useAdminTopics.js    # CRUD topic (admin)
    │  └─ useAdminQuestions.js # CRUD + bulk câu hỏi (admin)
    ├─ lib/
-   │  └─ quiz.js          # Hàm thuần: chọn đáp án, đếm, tiến độ (dễ test)
+   │  ├─ quiz.js          # Hàm thuần: chọn đáp án, đếm, tiến độ (dễ test)
+   │  ├─ markdown.js      # Render Markdown an toàn (marked + DOMPurify) + slug
+   │  └─ topicMeta.js     # Gợi ý icon/nhóm + đếm câu hỏi / 'có video' theo topic
    ├─ layouts/
-   │  ├─ GuestLayout.jsx  # Khung Guest: navbar + nội dung
-   │  └─ AdminLayout.jsx  # Khung Admin: sidebar + nội dung + đăng xuất
+   │  ├─ GuestLayout.jsx  # Navbar công khai + nội dung + footer
+   │  └─ AdminLayout.jsx  # Sidebar + topbar + footer + đăng xuất
    ├─ components/
-   │  └─ ProtectedRoute.jsx   # Chặn route admin nếu chưa đăng nhập
+   │  ├─ ProtectedRoute.jsx   # Chặn route admin nếu chưa đăng nhập
+   │  ├─ Brand.jsx            # Logo/thương hiệu
+   │  ├─ Icon.jsx             # Bọc Material Symbols
+   │  ├─ StateBlock.jsx       # Khối Loading / Error / Empty dùng chung
+   │  ├─ guest/GuestFooter.jsx
+   │  └─ quiz/QuizResult.jsx  # Màn kết quả quiz
    ├─ pages/
-   │  ├─ TopicsPage.jsx       # Danh sách topic           (UI: stub)
-   │  ├─ TopicDetailPage.jsx  # Nội dung 1 topic          (UI: stub)
-   │  ├─ QuizPage.jsx         # Làm & nộp quiz            (UI: stub)
+   │  ├─ TopicsPage.jsx       # Danh sách chủ đề + tìm kiếm
+   │  ├─ TopicDetailPage.jsx  # Video + Markdown + mục lục
+   │  ├─ QuizPage.jsx         # Làm & nộp quiz + kết quả
+   │  ├─ NotFoundPage.jsx     # Trang 404
+   │  ├─ ArchitecturePage.jsx # Sơ đồ kiến trúc (hiển thị trong khu admin)
    │  └─ admin/
-   │     ├─ LoginPage.jsx     # Đăng nhập admin           (UI: stub)
-   │     └─ DashboardPage.jsx # Trang quản trị            (UI: stub)
+   │     ├─ LoginPage.jsx          # Đăng nhập admin
+   │     ├─ DashboardPage.jsx      # Thống kê + biểu đồ
+   │     ├─ TopicsAdminPage.jsx    # CRUD chủ đề
+   │     ├─ QuestionsAdminPage.jsx # CRUD + nhập hàng loạt câu hỏi
+   │     └─ SystemStatusPage.jsx   # Health check backend/DB
    ├─ App.jsx / main.jsx  # Khởi tạo app & định tuyến (react-router)
-   └─ *.css
+   └─ index.css           # Tailwind directives + base + style Markdown
 ```
 
 > **Phân tầng:** `pages` (giao diện) → gọi `hooks` (logic/state) → gọi `api/client.js` (HTTP) → backend.
-> UI chưa chốt nên `pages/*` còn là stub; toàn bộ logic đã nằm sẵn trong `hooks/` và `lib/`.
+> `pages/*` nay đã có UI đầy đủ; logic vẫn tách riêng trong `hooks/` và `lib/`.
 
 ## Chạy frontend (dev)
 
