@@ -105,6 +105,11 @@ export const publicApi = {
       body: JSON.stringify({ quiz_token: quizToken, answers })
     })
   },
+
+  // GET /api/health -> { status, database } (dùng cho màn System Status).
+  getHealth: () => {
+    return request('/api/health')
+  },
 }
 
 // ========================= ADMIN API (cần JWT) =========================

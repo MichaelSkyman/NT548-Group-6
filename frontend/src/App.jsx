@@ -1,12 +1,17 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route } from 'react-router-dom'
 import GuestLayout from './layouts/GuestLayout'
 import AdminLayout from './layouts/AdminLayout'
 import ProtectedRoute from './components/ProtectedRoute'
 import TopicsPage from './pages/TopicsPage'
 import TopicDetailPage from './pages/TopicDetailPage'
 import QuizPage from './pages/QuizPage'
+import ArchitecturePage from './pages/ArchitecturePage'
+import NotFoundPage from './pages/NotFoundPage'
 import LoginPage from './pages/admin/LoginPage'
 import DashboardPage from './pages/admin/DashboardPage'
+import TopicsAdminPage from './pages/admin/TopicsAdminPage'
+import QuestionsAdminPage from './pages/admin/QuestionsAdminPage'
+import SystemStatusPage from './pages/admin/SystemStatusPage'
 
 export default function App() {
   return (
@@ -17,6 +22,8 @@ export default function App() {
         <Route path="topics" element={<TopicsPage />} />    {/* "/topics" */}
         <Route path="topics/:slug" element={<TopicDetailPage />} />
         <Route path="quiz/:slug" element={<QuizPage />} />
+        {/* 404: nằm trong GuestLayout để vẫn có navbar + footer */}
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
 
       {/* Đăng nhập admin: để NGOÀI layout admin (chưa cần sidebar) */}
@@ -31,14 +38,12 @@ export default function App() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<DashboardPage />} />         {/* "/admin" */}
-        {/* sau này tạo thêm:
+        <Route index element={<DashboardPage />} />            {/* "/admin" */}
         <Route path="topics" element={<TopicsAdminPage />} />
-        <Route path="questions" element={<QuestionsAdminPage />} /> */}
+        <Route path="questions" element={<QuestionsAdminPage />} />
+        <Route path="architecture" element={<ArchitecturePage />} />
+        <Route path="system-status" element={<SystemStatusPage />} />
       </Route>
-
-      {/* 404: gì không khớp thì đẩy về trang chủ */}
-      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }
