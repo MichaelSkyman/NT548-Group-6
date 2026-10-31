@@ -94,8 +94,8 @@ class QuestionService:
 
         options = data.get("options") if "options" in data else (current.options if current else None)
         if "options" in data:
-            if not isinstance(options, list) or len(options) < 2:
-                raise ApiError("options must be a list with at least two items")
+            if not isinstance(options, list) or not 2 <= len(options) <= 8:
+                raise ApiError("options must be a list with 2 to 8 items")
             if any(not isinstance(option, str) or not option.strip() for option in options):
                 raise ApiError("options must contain non-empty strings")
             cleaned = [option.strip() for option in options]

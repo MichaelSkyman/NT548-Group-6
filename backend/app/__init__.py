@@ -9,11 +9,16 @@ from werkzeug.exceptions import HTTPException
 from .config import Config
 from .errors import ApiError
 from .extensions import db, jwt, migrate
+from database.connection import database_url, engine_options
 
 
 def create_app(config_object=Config):
     app = Flask(__name__)
     app.config.from_object(config_object)
+    if not app.config.get("SQLALCHEMY_DATABASE_URI"):
+        url = database_url()
+        app.config["SQLALCHEMY_DATABASE_URI"] = url
+        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = engine_options(url)
 
     origins = [
         origin.strip()

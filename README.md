@@ -1,4 +1,4 @@
-# DevOps Learning Platform — Frontend
+# DevOps Learning Platform
 
 Giao diện web (React + Vite) cho nền tảng học DevOps theo mô hình **Guest học tự do / Admin quản trị nội dung**. Frontend gọi tới Flask REST API của backend qua tiền tố `/api`.
 
@@ -7,14 +7,12 @@ Giao diện web (React + Vite) cho nền tảng học DevOps theo mô hình **Gu
 - **Guest**: xem danh sách topic, đọc nội dung học, làm quiz và nộp bài nhận điểm.
 - **Admin**: đăng nhập JWT, xem dashboard, quản lý (CRUD) topic và câu hỏi.
 
-### Tài khoản admin (mặc định — môi trường học/demo)
+### Database và tài khoản Admin
 
-Admin được tạo bởi `backend/seed.py` theo biến trong `.env`. Giá trị mặc định dùng để demo:
-
-- Tài khoản: `admin`
-- Mật khẩu: `182806`
-
-> ⚠️ Đây là thông tin dev/demo. Khi deploy thật, hãy đổi `ADMIN_USERNAME` / `ADMIN_PASSWORD` trong `.env` (hoặc `k8s/secrets.yaml`) và **không commit mật khẩu thật** lên git.
+Xem [hướng dẫn database](backend/database/README.md) và [báo cáo tích hợp các nhánh](docs/database-integration-review.md).
+Backend và CLI hiện dùng cùng model, migration, cấu hình kết nối. Không có tài khoản Admin mặc định.
+Chạy `python -m database create-admin --username admin` từ `backend/` để tạo tài khoản (mật khẩu tối thiểu 12 ký tự).
+`python seed.py` chỉ tạo Admin nếu đặt rõ `ADMIN_PASSWORD`; không ghi đè tài khoản đã có.
 
 ## Trạng thái hiện tại
 
@@ -172,9 +170,10 @@ cd backend
 python -m venv .venv
 .venv\Scripts\activate          # Windows
 pip install -r requirements-dev.txt
-copy .env.example .env           # sửa DATABASE_URL, SECRET_KEY, JWT_SECRET_KEY, ADMIN_PASSWORD
+copy ..\.env.example ..\.env     # sửa DB_*, SECRET_KEY, JWT_SECRET_KEY
 flask --app run.py db upgrade    # tạo bảng (migration)
-python seed.py                   # nạp dữ liệu mẫu + tài khoản admin
+python -m database seed          # nạp dữ liệu mẫu
+python -m database create-admin --username admin
 flask --app run.py run --port 8000
 ```
 

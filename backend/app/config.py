@@ -1,10 +1,10 @@
 import os
 from datetime import timedelta
 
-from dotenv import load_dotenv
+from database.connection import load_environment
 
 
-load_dotenv()
+load_environment()
 
 
 class Config:
@@ -13,12 +13,10 @@ class Config:
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(
         minutes=int(os.getenv("JWT_ACCESS_TOKEN_MINUTES", "60"))
     )
-    SQLALCHEMY_DATABASE_URI = os.getenv(
-        "DATABASE_URL",
-        "postgresql+psycopg://postgres:postgres@localhost:5432/devops_learning",
-    )
+    # Resolve in create_app so tests need no production credentials.
+    SQLALCHEMY_DATABASE_URI = None
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
+    SQLALCHEMY_ENGINE_OPTIONS = {}
     QUIZ_SIZE = int(os.getenv("QUIZ_SIZE", "15"))
     QUIZ_TOKEN_MAX_AGE = int(os.getenv("QUIZ_TOKEN_MAX_AGE", "3600"))
     JSON_SORT_KEYS = False

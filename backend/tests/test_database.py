@@ -66,6 +66,23 @@ def test_connection_url_special_characters(monkeypatch):
     assert url.query["sslmode"] == "verify-full"
 
 
+def test_kubernetes_db_user_alias_and_tls_configuration(monkeypatch):
+    from database.connection import engine_options
+
+    for key, value in {
+        "DATABASE_URL": "", "DB_USERNAME": "", "DB_USER": "legacy_user",
+        "DB_HOST": "rds.example", "DB_NAME": "test", "DB_PASSWORD": "p@ss:/%",
+        "DB_SSLMODE": "verify-full", "DB_SSLROOTCERT": "/certs/global-bundle.pem",
+    }.items():
+        monkeypatch.setenv(key, value)
+    url = database_url()
+    assert url.username == "legacy_user"
+    assert url.password == "p@ss:/%"
+    assert engine_options(url)["connect_args"]["sslmode"] == "verify-full"
+    monkeypatch.setenv("DB_USERNAME", "preferred_user")
+    assert database_url().username == "preferred_user"
+
+
 def test_offline_migration_matches_model_constraint_names(monkeypatch):
     from io import StringIO
 
@@ -83,7 +100,7 @@ def test_offline_migration_matches_model_constraint_names(monkeypatch):
 
 
 @pytest.fixture()
-def pg_engine():
+def pg_schema():
     raw_url = os.getenv("TEST_DATABASE_URL")
     if not raw_url:
         pytest.skip("Set TEST_DATABASE_URL for PostgreSQL integration tests.")
@@ -92,19 +109,25 @@ def pg_engine():
     admin_engine = create_engine(url)
     with admin_engine.begin() as connection:
         connection.execute(text(f'CREATE SCHEMA "{schema}"'))
-    engine = create_engine(url, connect_args={"options": f"-csearch_path={schema} -c timezone=UTC"})
+    engine = create_engine(url.update_query_dict({"options": f"-csearch_path={schema} -c timezone=UTC"}))
     config = Config(str(BACKEND / "alembic.ini"))
     try:
-        with engine.connect() as connection:
-            config.attributes["connection"] = connection
-            command.upgrade(config, "head")
-            command.upgrade(config, "head")
         yield engine, config
     finally:
         engine.dispose()
         with admin_engine.begin() as connection:
             connection.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
         admin_engine.dispose()
+
+
+@pytest.fixture()
+def pg_engine(pg_schema):
+    engine, config = pg_schema
+    with engine.connect() as connection:
+        config.attributes["connection"] = connection
+        command.upgrade(config, "head")
+        command.upgrade(config, "head")
+    return engine, config
 
 
 def test_migration_seed_and_downgrade(pg_engine):
@@ -156,3 +179,91 @@ def test_database_rejects_duplicate_slug_and_orphan(pg_engine):
             "INSERT INTO questions (topic_id, question_text, options, correct_answer) "
             "VALUES (-1, 'Question', '[\"A\",\"B\"]'::jsonb, 0)"
         ))
+
+
+@pytest.mark.parametrize("revision", ["0001", "0001_initial", "0002_topic_video_url"])
+def test_upgrade_preserves_data_from_each_branch(pg_schema, revision):
+    engine, config = pg_schema
+    with engine.connect() as connection:
+        config.attributes["connection"] = connection
+        if revision == "0001":
+            command.upgrade(config, revision)
+        else:
+            legacy = (BACKEND / "tests/fixtures/backend_0002.sql").read_text(encoding="utf-8")
+            with connection.begin():
+                connection.exec_driver_sql(legacy)
+                if revision == "0001_initial":
+                    connection.exec_driver_sql("ALTER TABLE topics DROP COLUMN video_url")
+            command.stamp(config, revision)
+        with connection.begin():
+            connection.execute(text(
+                "INSERT INTO topics (name, slug, description, content, created_at, updated_at) "
+                "VALUES ('Existing', 'existing', 'Keep description', 'Keep content', now(), now())"
+            ))
+            admin = Admin(username="existing-admin")
+            admin.set_password("preserved-password-123")
+            connection.execute(text(
+                "INSERT INTO admins (username, password_hash, is_active, created_at) "
+                "VALUES ('existing-admin', :hash, true, now())"
+            ) if revision == "0001" else text(
+                "INSERT INTO admins (username, password_hash, token_version, is_active, created_at) "
+                "VALUES ('existing-admin', :hash, 7, true, now())"
+            ), {"hash": admin.password_hash})
+            connection.execute(text(
+                "INSERT INTO questions (topic_id, question_text, options, correct_answer, created_at, updated_at) "
+                "SELECT id, 'Existing question?', '[\"A\",\"B\"]', 1, now(), now() FROM topics WHERE slug = 'existing'"
+            ))
+        command.upgrade(config, "head")
+        command.upgrade(config, "head")
+        assert compare_metadata(MigrationContext.configure(connection), Base.metadata) == []
+        assert connection.scalar(text("SELECT content FROM topics WHERE slug = 'existing'")) == "Keep content"
+    # Verify the migrated schema with the actual backend, not only standalone models.
+    from app import create_app
+    from app.config import TestConfig
+
+    class PostgreSQLTestConfig(TestConfig):
+        SECRET_KEY = "test-secret-that-is-at-least-32-bytes-long"
+        JWT_SECRET_KEY = "test-jwt-secret-that-is-at-least-32-bytes-long"
+        SQLALCHEMY_DATABASE_URI = engine.url
+        SQLALCHEMY_ENGINE_OPTIONS = {}
+
+    application = create_app(PostgreSQLTestConfig)
+    client = application.test_client()
+    response = client.get("/api/topics/existing")
+    assert response.status_code == 200
+    assert response.get_json()["content"] == "Keep content"
+    login = client.post("/api/admin/login", json={"username": "existing-admin", "password": "preserved-password-123"})
+    assert login.status_code == 200
+    headers = {"Authorization": "Bearer " + login.get_json()["access_token"]}
+    assert client.get("/api/admin/questions", headers=headers).get_json()[0]["correct_answer"] == 1
+    # Exercise the Kubernetes team's previous command as well as the database CLI.
+    result = application.test_cli_runner().invoke(args=["db", "upgrade"])
+    assert result.exit_code == 0, result.output
+    with application.app_context():
+        application.extensions["sqlalchemy"].engine.dispose()
+
+
+def test_flask_and_database_use_same_models_and_session(app):
+    from app.extensions import db
+    from app.models import Admin as BackendAdmin, Topic as BackendTopic
+    from database import get_session, init_app
+
+    assert BackendAdmin is Admin
+    assert BackendTopic is Topic
+    assert db.metadata is Base.metadata
+    with app.app_context():
+        init_app(app)
+        assert get_session() is db.session()
+
+
+def test_backend_rejects_more_options_than_schema_allows(client, auth_headers):
+    response = client.post("/api/admin/questions", headers=auth_headers, json={
+        "topic_slug": "docker", "question_text": "Too many options?",
+        "options": [str(index) for index in range(9)], "correct_answer": 0,
+    })
+    assert response.status_code == 400
+
+
+def test_single_migration_head():
+    from alembic.script import ScriptDirectory
+    assert ScriptDirectory.from_config(Config(str(BACKEND / "alembic.ini"))).get_heads() == ["0003_reconcile"]

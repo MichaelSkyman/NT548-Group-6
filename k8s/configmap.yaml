@@ -5,10 +5,13 @@ metadata:
   name: app-config
   namespace: devops-app
 data:
-  # Service ExternalName "postgres" trỏ tới RDS (database-service.yaml)
-  DB_HOST: postgres
+  # Alias "postgres" in database-service.yaml is used by the TCP/DNS check.
+  # Use the real RDS hostname for TLS hostname verification.
+  DB_HOST: REPLACE_WITH_RDS_ENDPOINT.rds.amazonaws.com
   DB_PORT: "5432"
   DB_NAME: devops_learning
+  DB_SSLMODE: verify-full
+  DB_SSLROOTCERT: /certs/global-bundle.pem
   # Frontend và API cùng domain qua ALB nên không cần giới hạn CORS chặt
   ALLOWED_ORIGINS: "*"
   FLASK_DEBUG: "0"

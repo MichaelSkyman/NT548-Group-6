@@ -1,6 +1,7 @@
 """Alembic uses the same configuration and metadata as the application."""
 
 from alembic import context
+from flask import current_app, has_app_context
 
 from database.connection import build_engine, database_url
 from database.models import Base
@@ -26,6 +27,10 @@ if context.is_offline_mode():
 elif context.config.attributes.get("connection") is not None:
     # Allows integration tests to migrate an isolated PostgreSQL schema.
     run_online(context.config.attributes["connection"])
+elif has_app_context() and "migrate" in current_app.extensions:
+    # flask db upgrade and python -m database migrate share this environment.
+    with current_app.extensions["migrate"].db.engine.connect() as connection:
+        run_online(connection)
 else:
     engine = build_engine()
     try:

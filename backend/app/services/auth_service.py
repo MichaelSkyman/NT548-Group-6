@@ -10,7 +10,7 @@ class AuthService:
     def admin_login(username, password):
         if not isinstance(username, str) or not isinstance(password, str):
             raise ApiError("username and password are required", 400)
-        admin = AdminRepository.by_username(username.strip())
+        admin = AdminRepository.by_username(username.strip().lower())
         if admin is None or not admin.is_active or not admin.check_password(password):
             raise ApiError("Invalid username or password", 401)
         token = create_access_token(
