@@ -6,5 +6,15 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 *.egg-info/
-k8s/database/secret.yaml
+.coverage
+htmlcov/
+instance/
+.tmp/
+node_modules/
+dist/
 *.pem
+k8s/database/secret.yaml
+k8s/secrets.local.yaml
+.terraform/
+*.tfstate
+*.tfstate.*
