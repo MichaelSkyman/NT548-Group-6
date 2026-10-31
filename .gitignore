@@ -1,0 +1,51 @@
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.coverage
+htmlcov/
+instance/
+.tmp/
+node_modules/
+dist/
+*.pem
+k8s/database/secret.yaml
+k8s/secrets.local.yaml
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# Terraform
+*.tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+# tfvars chứa db_password, chỉ commit file mẫu
+*.tfvars
+*.tfvars.json
+!*.example.tfvars
+# Kubeconfig / credentials
+kubeconfig*
+*.key
+# Binary cài đặt tải về
+*.deb
+# Backend (Flask)
+venv/
+# Frontend (React)
+build/
+npm-debug.log*
+yarn-error.log*
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
