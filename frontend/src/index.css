@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background: theme('colors.background');
+    color: theme('colors.on-surface');
+    font-family: theme('fontFamily.sans');
+    overscroll-behavior: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Material Symbols: icon dạng span.material-symbols-outlined */
+  .material-symbols-outlined {
+    font-variation-settings:
+      'FILL' 0,
+      'wght' 400,
+      'GRAD' 0,
+      'opsz' 24;
+    user-select: none;
+    line-height: 1;
+  }
+}
+
+/* Ẩn scrollbar cho đồng bộ với bản thiết kế Stitch. */
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* Nội dung bài học render từ Markdown. */
+.md-content {
+  color: theme('colors.on-surface');
+  font-size: 15px;
+  line-height: 1.7;
+}
+.md-content h1,
+.md-content h2 {
+  scroll-margin-top: 96px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: theme('colors.primary');
+  margin: 1.4em 0 0.5em;
+}
+.md-content h1 { font-size: 24px; }
+.md-content h2 { font-size: 20px; }
+.md-content h3 {
+  scroll-margin-top: 96px;
+  font-size: 17px;
+  font-weight: 600;
+  color: theme('colors.primary');
+  margin: 1.2em 0 0.4em;
+}
+.md-content p { margin: 0 0 0.9em; }
+.md-content ul,
+.md-content ol { margin: 0 0 1em; padding-left: 1.5rem; }
+.md-content li { margin: 0.25em 0; }
+.md-content a { color: theme('colors.secondary'); text-decoration: underline; }
+.md-content strong { color: theme('colors.on-surface'); font-weight: 600; }
+.md-content code {
+  font-family: theme('fontFamily.mono');
+  font-size: 0.88em;
+  background: theme('colors.surface-container');
+  color: theme('colors.primary');
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.md-content pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  overflow-x: auto;
+  margin: 0 0 1em;
+}
+.md-content pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  font-size: 13px;
+}
+.md-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 1em;
+  font-size: 14px;
+}
+.md-content th,
+.md-content td {
+  border: 1px solid theme('colors.outline-variant');
+  padding: 8px 12px;
+  text-align: left;
+}
+.md-content th { background: theme('colors.surface-container'); }
+.md-content blockquote {
+  border-left: 3px solid theme('colors.secondary');
+  margin: 0 0 1em;
+  padding: 0.25em 0 0.25em 1rem;
+  color: theme('colors.on-surface-variant');
+}
