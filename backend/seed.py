@@ -44,7 +44,9 @@ QUESTIONS = {
 
 def seed():
     username = os.getenv("ADMIN_USERNAME", "admin").strip()
-    password = os.getenv("ADMIN_PASSWORD", "admin-change-me")
+    password = os.getenv("ADMIN_PASSWORD")
+    if not password:
+        raise RuntimeError("ADMIN_PASSWORD must be set before seeding")
     admin = db.session.scalar(db.select(Admin).where(Admin.username == username))
     if admin is None:
         admin = Admin(username=username)

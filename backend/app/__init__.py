@@ -30,6 +30,17 @@ def create_app(config_object=Config):
 
     app.register_blueprint(public_bp)
     app.register_blueprint(admin_bp)
+    @app.get("/")
+    def service_root():
+        return jsonify(
+            {
+                "service": "DevOps Learning Platform API",
+                "status": "running",
+                "health": "/api/health",
+                "frontend": "http://localhost:3000",
+            }
+        )
+
     register_error_handlers(app)
     return app
 
