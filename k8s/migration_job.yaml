@@ -1,0 +1,56 @@
+# Chạy Alembic migration + seed dữ liệu lên RDS, một lần trước khi deploy backend.
+# Cả hai bước đều idempotent nên chạy lại an toàn. Job không sửa được sau khi tạo,
+# muốn chạy lại (vd. image mới):
+#   kubectl -n devops-app delete job db-migrate --ignore-not-found
+#   kubectl apply -f k8s/migration_job.yaml
+#   kubectl -n devops-app wait --for=condition=complete job/db-migrate --timeout=10m
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migrate
+  namespace: devops-app
+  labels:
+    app: db-migrate
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: db-migrate
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - until nc -z postgres 5432; do echo "Waiting for PostgreSQL"; sleep 2; done
+      containers:
+        - name: migrate
+          # Cùng image với backend; WORKDIR phải là thư mục chứa run.py và migrations/
+          image: backend:latest
+          imagePullPolicy: Always
+          command:
+            - sh
+            - -c
+            - flask --app run.py db upgrade && python seed.py
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: app-secrets
+          env:
+            - name: DATABASE_URL
+              value: postgresql+psycopg://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
