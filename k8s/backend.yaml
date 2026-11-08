@@ -41,9 +41,11 @@ spec:
                 name: app-config
             - secretRef:
                 name: app-secrets
-          env:
-            - name: DATABASE_URL
-              value: postgresql+psycopg://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)
+          # The application builds the URL safely from DB_USER / DB_PASSWORD.
+          volumeMounts:
+            - name: rds-ca
+              mountPath: /certs
+              readOnly: true
           resources:
             requests:
               memory: "256Mi"
@@ -63,6 +65,10 @@ spec:
               port: http
             initialDelaySeconds: 20
             periodSeconds: 20
+      volumes:
+        - name: rds-ca
+          configMap:
+            name: rds-ca
 ---
 apiVersion: v1
 kind: Service

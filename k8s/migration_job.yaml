@@ -1,5 +1,5 @@
-# Chạy Alembic migration + seed dữ liệu lên RDS, một lần trước khi deploy backend.
-# Cả hai bước đều idempotent nên chạy lại an toàn. Job không sửa được sau khi tạo,
+# Chạy Alembic migration lên RDS trước khi deploy backend. Seed chạy riêng.
+# Migration chạy lại an toàn. Job không sửa được sau khi tạo,
 # muốn chạy lại (vd. image mới):
 #   kubectl -n devops-app delete job db-migrate --ignore-not-found
 #   kubectl apply -f k8s/migration_job.yaml
@@ -36,17 +36,19 @@ spec:
           image: backend:latest
           imagePullPolicy: Always
           command:
-            - sh
-            - -c
-            - flask --app run.py db upgrade && python seed.py
+            - python
+            - -m
+            - database
+            - migrate
           envFrom:
             - configMapRef:
                 name: app-config
             - secretRef:
                 name: app-secrets
-          env:
-            - name: DATABASE_URL
-              value: postgresql+psycopg://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)
+          volumeMounts:
+            - name: rds-ca
+              mountPath: /certs
+              readOnly: true
           resources:
             requests:
               memory: "128Mi"
@@ -54,3 +56,7 @@ spec:
             limits:
               memory: "256Mi"
               cpu: "500m"
+      volumes:
+        - name: rds-ca
+          configMap:
+            name: rds-ca

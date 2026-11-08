@@ -1,63 +1,40 @@
-import logging
-from logging.config import fileConfig
+"""Alembic uses the same configuration and metadata as the application."""
 
 from alembic import context
-from flask import current_app
+from flask import current_app, has_app_context
 
-config = context.config
-fileConfig(config.config_file_name)
-logger = logging.getLogger("alembic.env")
-
-
-def get_engine():
-    try:
-        return current_app.extensions["migrate"].db.get_engine()
-    except (TypeError, AttributeError):
-        return current_app.extensions["migrate"].db.engine
+from database.connection import build_engine, database_url
+from database.models import Base
 
 
-def get_engine_url():
-    try:
-        return get_engine().url.render_as_string(hide_password=False).replace("%", "%%")
-    except AttributeError:
-        return str(get_engine().url).replace("%", "%%")
-
-
-config.set_main_option("sqlalchemy.url", get_engine_url())
-target_db = current_app.extensions["migrate"].db
-
-
-def get_metadata():
-    return target_db.metadata
-
-
-def run_migrations_offline():
-    context.configure(url=config.get_main_option("sqlalchemy.url"), target_metadata=get_metadata(), literal_binds=True)
-    with context.begin_transaction():
-        context.run_migrations()
-
-
-def run_migrations_online():
-    def process_revision_directives(context_, revision, directives):
-        if getattr(config.cmd_opts, "autogenerate", False):
-            script = directives[0]
-            if script.upgrade_ops.is_empty():
-                directives[:] = []
-                logger.info("No changes in schema detected.")
-
-    connectable = get_engine()
-    with connectable.connect() as connection:
-        context.configure(
-            connection=connection,
-            target_metadata=get_metadata(),
-            process_revision_directives=process_revision_directives,
-            compare_type=True,
-        )
+def run_online(connection):
+    with connection.begin():
+        # Serialize migration Jobs. Transaction-level lock releases on failure too.
+        connection.exec_driver_sql("SELECT pg_advisory_xact_lock(54800601)")
+        context.configure(connection=connection, target_metadata=Base.metadata, compare_type=True)
         with context.begin_transaction():
             context.run_migrations()
 
 
 if context.is_offline_mode():
-    run_migrations_offline()
+    context.configure(
+        url=database_url(), target_metadata=Base.metadata,
+        literal_binds=True, dialect_opts={"paramstyle": "named"},
+        compare_type=True,
+    )
+    with context.begin_transaction():
+        context.run_migrations()
+elif context.config.attributes.get("connection") is not None:
+    # Allows integration tests to migrate an isolated PostgreSQL schema.
+    run_online(context.config.attributes["connection"])
+elif has_app_context() and "migrate" in current_app.extensions:
+    # flask db upgrade and python -m database migrate share this environment.
+    with current_app.extensions["migrate"].db.engine.connect() as connection:
+        run_online(connection)
 else:
-    run_migrations_online()
+    engine = build_engine()
+    try:
+        with engine.connect() as connection:
+            run_online(connection)
+    finally:
+        engine.dispose()

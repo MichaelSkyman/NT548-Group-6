@@ -89,6 +89,9 @@ class TopicService:
                 if not isinstance(value, str):
                     raise ApiError(f"{field} must be a string")
                 value = value.strip()
+                max_length = {"name": 100, "slug": 120, "video_url": 500}.get(field)
+                if max_length and len(value) > max_length:
+                    raise ApiError(f"{field} must be at most {max_length} characters")
                 if field in required and not value:
                     raise ApiError(f"{field} must not be empty")
                 if field == "video_url":

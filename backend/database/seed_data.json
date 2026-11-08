@@ -1,0 +1,47 @@
+[
+  {
+    "name": "Docker", "slug": "docker",
+    "description": "Đóng gói và chạy ứng dụng bằng container.",
+    "content": "# Docker\n\nImage là mẫu đóng gói ứng dụng và dependencies. Container là một instance đang chạy của image. Dockerfile mô tả các bước build image. Volume giúp lưu dữ liệu độc lập với vòng đời container.",
+    "questions": [
+      {"question_text": "Dockerfile dùng để làm gì?", "options": ["Mô tả các bước build image", "Cấp phát địa chỉ IP cho VPC", "Quản lý tên miền", "Tạo IAM user"], "correct_answer": 0, "explanation": "Docker build đọc Dockerfile để tạo image."},
+      {"question_text": "Thành phần nào lưu dữ liệu độc lập với vòng đời container?", "options": ["Image tag", "Volume", "Container log driver", "Build argument"], "correct_answer": 1, "explanation": "Volume có vòng đời độc lập với container sử dụng nó."}
+    ]
+  },
+  {
+    "name": "Kubernetes", "slug": "kubernetes",
+    "description": "Điều phối workload container và khám phá dịch vụ.",
+    "content": "# Kubernetes\n\nPod là đơn vị triển khai nhỏ nhất. Deployment quản lý các replica của Pod. Service cung cấp điểm truy cập ổn định. Job chạy công việc hữu hạn như database migration.",
+    "questions": [
+      {"question_text": "Đơn vị triển khai nhỏ nhất trong Kubernetes là gì?", "options": ["Node", "Cluster", "Pod", "Namespace"], "correct_answer": 2, "explanation": "Pod chứa một hoặc nhiều container chia sẻ network và storage."},
+      {"question_text": "Resource nào phù hợp để chạy database migration một lần?", "options": ["Ingress", "ConfigMap", "Service", "Job"], "correct_answer": 3, "explanation": "Job chạy công việc đến khi hoàn tất."}
+    ]
+  },
+  {
+    "name": "Jenkins", "slug": "jenkins",
+    "description": "Tự động hóa build, test và triển khai bằng pipeline.",
+    "content": "# Jenkins\n\nJenkins tự động hóa CI/CD. Jenkinsfile lưu định nghĩa pipeline trong source control. Stage chia pipeline thành các bước như build, test và deploy. Agent thực thi các tác vụ.",
+    "questions": [
+      {"question_text": "File nào thường lưu định nghĩa Jenkins Pipeline trong Git?", "options": ["Jenkinsfile", "Dockerignore", "terraform.tfstate", "package-lock.json"], "correct_answer": 0, "explanation": "Jenkinsfile cho phép quản lý pipeline cùng source code."},
+      {"question_text": "Jenkins agent có vai trò gì?", "options": ["Quản lý hosted zone", "Thực thi tác vụ pipeline", "Lưu mật khẩu dạng plain text", "Thay thế database"], "correct_answer": 1, "explanation": "Agent cung cấp môi trường thực thi các bước pipeline."}
+    ]
+  },
+  {
+    "name": "Terraform", "slug": "terraform",
+    "description": "Quản lý hạ tầng bằng mã nguồn.",
+    "content": "# Terraform\n\nTerraform mô tả hạ tầng bằng configuration. Lệnh plan cho xem trước thay đổi; apply thực thi thay đổi. State ghi lại liên kết giữa cấu hình và tài nguyên được quản lý.",
+    "questions": [
+      {"question_text": "Lệnh nào xem trước thay đổi hạ tầng của Terraform?", "options": ["terraform apply", "terraform destroy", "terraform plan", "terraform output"], "correct_answer": 2, "explanation": "Plan tạo kế hoạch thay đổi trước khi áp dụng."},
+      {"question_text": "Terraform state dùng để làm gì?", "options": ["Build container image", "Chạy unit test", "Định tuyến HTTP", "Theo dõi tài nguyên Terraform quản lý"], "correct_answer": 3, "explanation": "State ánh xạ tài nguyên thực tế với cấu hình Terraform."}
+    ]
+  },
+  {
+    "name": "GitHub Actions", "slug": "github-actions",
+    "description": "Chạy workflow CI/CD theo sự kiện của repository.",
+    "content": "# GitHub Actions\n\nWorkflow được mô tả bằng YAML trong .github/workflows. Event như push hoặc pull_request có thể kích hoạt workflow. Job chạy trên runner và gồm nhiều step.",
+    "questions": [
+      {"question_text": "GitHub Actions tìm workflow YAML trong thư mục nào?", "options": [".github/workflows", ".git/hooks", "node_modules", "infra/state"], "correct_answer": 0, "explanation": "Workflow được đặt trong .github/workflows của repository."},
+      {"question_text": "Thành phần nào thực thi job của GitHub Actions?", "options": ["Route53", "Runner", "RDS snapshot", "ALB listener"], "correct_answer": 1, "explanation": "Runner cung cấp môi trường chạy job và các step."}
+    ]
+  }
+]
