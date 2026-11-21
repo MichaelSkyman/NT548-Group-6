@@ -1,0 +1,21 @@
+# Tự phát hiện file văn bản và chuẩn hoá về LF trong repo
+* text=auto
+
+# Các file này chạy trên Linux (container, EKS, CI) nên luôn dùng LF,
+# kể cả khi checkout trên Windows (core.autocrlf=true)
+*.sh        text eol=lf
+*.yaml      text eol=lf
+*.yml       text eol=lf
+*.tf        text eol=lf
+*.tfvars    text eol=lf
+*.tpl       text eol=lf
+*.json      text eol=lf
+*.py        text eol=lf
+Dockerfile* text eol=lf
+.dockerignore text eol=lf
+
+# File nhị phân, không chuyển đổi xuống dòng
+*.png binary
+*.ico binary
+*.jpg binary
+*.pem binary
