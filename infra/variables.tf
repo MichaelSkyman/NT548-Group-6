@@ -39,3 +39,15 @@ variable "db_multi_az" {
   type        = bool
   default     = false
 }
+
+
+variable "alert_email" {
+  description = "Email nhận cảnh báo chi phí AWS Budgets"
+  type        = string
+}
+
+variable "monthly_budget_usd" {
+  description = "Ngân sách hàng tháng (USD)"
+  type        = number
+  default     = 20
+}
