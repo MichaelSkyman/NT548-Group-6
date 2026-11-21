@@ -47,6 +47,21 @@ resource "aws_db_instance" "postgresql" {
   vpc_security_group_ids = [aws_security_group.db_sg.id]
   skip_final_snapshot    = true
 
+  # Ổ đĩa gp3: rẻ hơn và nhanh hơn gp2 cùng dung lượng
+  storage_type = "gp3"
+  # Mã hoá dữ liệu nghỉ (at-rest) bằng KMS
+  storage_encrypted = true
+  # Giữ backup tự động 1 ngày để có thể khôi phục
+  backup_retention_period = 1
+  # Chạy standby ở AZ khác nếu bật biến db_multi_az (mặc định tắt cho đỡ tốn)
+  multi_az = var.db_multi_az
+  # Môi trường học: cho phép terraform destroy
+  deletion_protection = false
+  # Tự cập nhật bản vá nhỏ của PostgreSQL
+  auto_minor_version_upgrade = true
+  # Không cấp IP public, chỉ truy cập được từ trong VPC
+  publicly_accessible = false
+
   tags = {
     Name = "${var.project_name}-postgres-db"
   }

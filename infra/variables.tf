@@ -33,3 +33,9 @@ variable "db_password" {
   type        = string
   sensitive   = true
 }
+
+variable "db_multi_az" {
+  description = "Bật RDS Multi-AZ (đắt gấp đôi, mặc định tắt cho môi trường học)"
+  type        = bool
+  default     = false
+}
