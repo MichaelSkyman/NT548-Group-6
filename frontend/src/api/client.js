@@ -1,5 +1,5 @@
 // =====================================================================
-// API CLIENT (KHUNG MẪU — bạn tự điền phần TODO)
+// API CLIENT
 //
 // Nhiệm vụ của file này: gom MỌI lời gọi tới backend về một chỗ, mỗi tên
 // hàm khớp với một endpoint. Component không gọi fetch trực tiếp, chỉ gọi
@@ -31,7 +31,6 @@ const BASE = import.meta.env.VITE_API_BASE || ''
 const TOKEN_KEY = 'access_token'
 
 // ---- (a) Lưu / lấy / xoá JWT trong localStorage ----
-// TODO: hiện thực 4 phương thức dưới đây bằng localStorage.
 export const token = {
   get: () => {
     return localStorage.getItem(TOKEN_KEY)
@@ -43,7 +42,6 @@ export const token = {
     return localStorage.removeItem(TOKEN_KEY)
   },
   exists: () => {
-    // TODO: trả về true/false tuỳ token có tồn tại không
     return !!localStorage.getItem(TOKEN_KEY)
   },
 }

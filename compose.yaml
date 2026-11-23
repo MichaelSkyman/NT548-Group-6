@@ -1,6 +1,32 @@
+# Chạy cả 3 tầng ở local:   docker compose up -d --build   ->   http://localhost:8080
+# Cần file .env (copy từ .env.example, điền DB_PASSWORD, SECRET_KEY, JWT_SECRET_KEY, ADMIN_PASSWORD).
+#
+# Thứ tự khởi động:
+#   postgres (healthy) -> migrate (xong) -> seed (xong) -> backend (healthy) -> proxy
+
+# Dùng chung cho backend, migrate và seed: cùng một image, cùng biến môi trường.
+x-backend: &backend
+  build:
+    context: ./backend
+  image: nt548-backend:dev
+  environment: &backend-env
+    # "postgres" là tên service bên dưới; Docker biến nó thành hostname trong network của compose.
+    DB_HOST: postgres
+    DB_PORT: "5432"
+    DB_NAME: ${DB_NAME:-devops_learning}
+    DB_USERNAME: ${DB_USERNAME:-devops_app}
+    DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    DB_SSLMODE: disable
+    SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+    JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
+    # Frontend và API cùng origin qua proxy nên không cần CORS chặt (giống ConfigMap trên EKS).
+    ALLOWED_ORIGINS: "*"
+    QUIZ_SIZE: ${QUIZ_SIZE:-15}
+    QUIZ_TOKEN_MAX_AGE: ${QUIZ_TOKEN_MAX_AGE:-3600}
+
 services:
   postgres:
-    image: postgres:15
+    image: postgres:15.20
     environment:
       POSTGRES_DB: ${DB_NAME:-devops_learning}
       POSTGRES_USER: ${DB_USERNAME:-devops_app}
@@ -15,6 +41,65 @@ services:
       timeout: 5s
       retries: 12
 
+  # Tạo/cập nhật schema (Alembic). Chạy một lần rồi thoát; chạy lại an toàn.
+  migrate:
+    <<: *backend
+    command: ["python", "-m", "database", "migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # Nạp dữ liệu mẫu và tạo admin (chỉ tạo khi ADMIN_PASSWORD có giá trị, không ghi đè tài khoản đã có).
+  seed:
+    <<: *backend
+    environment:
+      <<: *backend-env
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env (at least 12 characters)}
+    command: ["python", "seed.py"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  backend:
+    <<: *backend
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    healthcheck:
+      # Image python:slim không có curl nên dùng chính Python để gọi health endpoint.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+    image: nt548-frontend:dev
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  # Giả lập ALB Ingress: /api -> backend, còn lại -> frontend.
+  proxy:
+    image: nginx:1.27.5-alpine
+    ports:
+      - "127.0.0.1:8080:80"
+    volumes:
+      - ./deploy/compose/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+
+  # Công cụ riêng: docker compose --profile tools run --rm database
   database:
     build:
       context: ./backend
