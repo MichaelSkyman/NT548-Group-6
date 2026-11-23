@@ -1,0 +1,5 @@
+# Copy thành backend.hcl rồi điền giá trị thật (lấy từ output của infra/bootstrap):
+#   cp infra/backend.hcl.example infra/backend.hcl
+#   terraform -chdir=infra/bootstrap output -raw state_bucket
+bucket = "<STATE_BUCKET_NAME>"
+region = "us-east-1"

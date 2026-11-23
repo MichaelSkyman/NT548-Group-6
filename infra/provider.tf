@@ -1,5 +1,6 @@
 terraform {
-  required_version = ">= 1.5"
+  # >= 1.10 vì backend S3 dùng khoá bằng file (use_lockfile), không cần bảng DynamoDB
+  required_version = ">= 1.10"
 
   required_providers {
     aws = {
