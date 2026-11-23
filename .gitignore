@@ -49,3 +49,10 @@ yarn-error.log*
 .idea/
 *.swp
 .DS_Store
+
+# Context nội bộ cho agent và kế hoạch làm việc: giữ ở máy, không đưa lên remote
+/AGENTS.md
+/CLAUDE.md
+/docs/AGENT_CONTEXT.md
+/docs/PLAN.md
+/docs/INFRA_TASKS_JUNIOR.md

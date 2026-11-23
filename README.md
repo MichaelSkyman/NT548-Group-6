@@ -1,180 +1,190 @@
-# DevOps Learning Platform
+# NT548 - Nhóm 6: DevOps Learning Platform trên AWS EKS
 
-Giao diện web (React + Vite) cho nền tảng học DevOps theo mô hình **Guest học tự do / Admin quản trị nội dung**. Frontend gọi tới Flask REST API của backend qua tiền tố `/api`.
+Ứng dụng web 3 tầng (**React + Flask + PostgreSQL**) học DevOps theo mô hình *Guest học tự do / Admin quản trị nội dung*, được đóng gói bằng Docker, triển khai lên **AWS EKS** bằng **Terraform** (hạ tầng) và **Helm** (ứng dụng), có CI/CD bằng **GitHub Actions**.
 
-## Chức năng chính
+> **Trạng thái kiểm chứng.** Đã chạy và kiểm tra thật trên máy local: Docker Compose, Kubernetes của Docker Desktop (Helm chart, HPA, probe, hook migrate/seed), toàn bộ test, `terraform validate`. **Phần AWS (EKS, RDS, ALB, OIDC) mới được viết và kiểm cú pháp; chưa deploy thực tế.** Cập nhật mục này sau lần deploy đầu tiên.
 
-- **Guest**: xem danh sách topic, đọc nội dung học, làm quiz và nộp bài nhận điểm.
-- **Admin**: đăng nhập JWT, xem dashboard, quản lý (CRUD) topic và câu hỏi.
-
-### Database và tài khoản Admin
-
-Xem [hướng dẫn database](backend/database/README.md) và [báo cáo tích hợp các nhánh](docs/database-integration-review.md).
-Backend và CLI hiện dùng cùng model, migration, cấu hình kết nối. Không có tài khoản Admin mặc định.
-Chạy `python -m database create-admin --username admin` từ `backend/` để tạo tài khoản (mật khẩu tối thiểu 12 ký tự).
-`python seed.py` chỉ tạo Admin nếu đặt rõ `ADMIN_PASSWORD`; không ghi đè tài khoản đã có.
-
-## Trạng thái hiện tại
-
-- ✅ **Kết nối frontend ↔ backend**: `api/client.js` + proxy `/api` (dev) / Ingress (prod).
-- ✅ **Tầng logic (headless hooks)**: data fetching, state quiz, đăng nhập, dashboard, CRUD admin — không dính giao diện.
-- ✅ **Đóng gói triển khai**: `Dockerfile` (multi-stage) + `nginx.conf` (SPA fallback, health check) + `.env.example`.
-- ✅ **Giao diện (UI) đầy đủ**: toàn bộ trang Guest + Admin đã dựng bằng **Tailwind CSS** theo bộ token trong `DESIGN.md` — không còn stub.
-
-## Giao diện đã bổ sung (bản `feature-frontend`)
-
-Dựng toàn bộ UI từ bản thiết kế, nối trực tiếp với các `hooks/` + `api/client.js` sẵn có.
-
-**Khu Guest (công khai):**
-
-- **Danh sách chủ đề** — hero, ô tìm kiếm lọc theo tên/mô tả, lưới thẻ chủ đề (tự gợi ý icon/nhóm theo tên, badge số câu hỏi/video), có trạng thái tải/lỗi/rỗng.
-- **Chi tiết chủ đề** — nhúng video YouTube, render **nội dung Markdown an toàn** (marked + DOMPurify), **mục lục "Nội dung trang"** tự sinh từ heading, nút làm quiz.
-- **Quiz** — làm từng câu, bảng nhảy câu (navigator), thanh tiến độ, nộp bài; **màn Kết quả** (vòng điểm %, 3 ô thống kê, ôn lại đáp án đã chọn).
-- **Trang 404** có ô tìm kiếm + gợi ý chủ đề phổ biến.
-- Navbar + footer công khai dùng chung.
-
-**Khu Admin (cần đăng nhập JWT):**
-
-- **Đăng nhập** + bảo vệ route (`ProtectedRoute`); **đăng xuất** quay về trang công khai.
-- **Dashboard** — 4 ô thống kê, biểu đồ câu hỏi/chủ đề, bảng trạng thái chủ đề.
-- **Quản lý chủ đề** — bảng + form tạo/sửa (ẩn tới khi bấm, tự cuộn tới) + xoá.
-- **Quản lý câu hỏi** — lọc theo chủ đề, tìm kiếm, bảng; form 4 đáp án (chọn đáp án đúng, **kiểm tra trùng/không để trống phía client**); **nhập hàng loạt JSON** (có nút "Chèn mẫu").
-- **Kiến trúc hệ thống** — sơ đồ 3-tier trên EKS (đặt trong khu admin).
-- **System Status** — gọi `GET /api/health`, hiển thị tình trạng Backend/Database + payload.
-- Sidebar + topbar + footer admin.
-
-**Hạ tầng UI thêm vào:**
-
-- **Tailwind CSS v3** + `@tailwindcss/forms` + PostCSS; **design tokens** (màu/typography/spacing/radius) lấy từ `DESIGN.md` trong `tailwind.config.js`.
-- Font **Geist** + **JetBrains Mono** + **Material Symbols** (nạp trong `index.html`).
-- **marked** + **dompurify** để render Markdown an toàn.
-- Component dùng chung: `Brand`, `Icon`, `StateBlock` (loading/error/empty), `guest/GuestFooter`, `quiz/QuizResult`.
-- `api/client.js` thêm `getHealth()`; `App.jsx` thêm route: `/architecture` (nằm trong `/admin/architecture`), `/admin/topics`, `/admin/questions`, `/admin/system-status`, và trang 404.
-
-## Cấu trúc thư mục
+## Kiến trúc
 
 ```
-frontend/
-├─ Dockerfile              # Build multi-stage: node build dist/ -> nginx phục vụ
-├─ nginx.conf             # SPA fallback (try_files) + /healthz cho ALB
-├─ .dockerignore
-├─ .env.example           # Mẫu biến VITE_API_BASE
-├─ vite.config.js         # Dev server (port 3000) + proxy /api -> backend :8000
-├─ tailwind.config.js     # Design tokens (theo DESIGN.md) + @tailwindcss/forms
-├─ postcss.config.js      # Tailwind + autoprefixer
-├─ index.html             # Nạp font Geist / JetBrains Mono / Material Symbols
-└─ src/
-   ├─ api/
-   │  └─ client.js        # Gom toàn bộ lời gọi API (publicApi, adminApi, token)
-   ├─ hooks/              # LOGIC (không UI) — tái sử dụng cho các trang
-   │  ├─ useApi.js            # Gom loading/error/data cho mọi lời gọi API
-   │  ├─ useTopics.js         # Danh sách topic (Guest)
-   │  ├─ useTopic.js          # Nội dung 1 topic theo slug
-   │  ├─ useQuiz.js           # Tải đề quiz + quiz_token
-   │  ├─ useQuizSession.js    # Toàn bộ luồng làm quiz: chọn đáp án, nộp, kết quả
-   │  ├─ useLogin.js          # Logic đăng nhập admin + điều hướng
-   │  ├─ useDashboard.js      # Số liệu dashboard + đăng xuất
-   │  ├─ useAdminTopics.js    # CRUD topic (admin)
-   │  └─ useAdminQuestions.js # CRUD + bulk câu hỏi (admin)
-   ├─ lib/
-   │  ├─ quiz.js          # Hàm thuần: chọn đáp án, đếm, tiến độ (dễ test)
-   │  ├─ markdown.js      # Render Markdown an toàn (marked + DOMPurify) + slug
-   │  └─ topicMeta.js     # Gợi ý icon/nhóm + đếm câu hỏi / 'có video' theo topic
-   ├─ layouts/
-   │  ├─ GuestLayout.jsx  # Navbar công khai + nội dung + footer
-   │  └─ AdminLayout.jsx  # Sidebar + topbar + footer + đăng xuất
-   ├─ components/
-   │  ├─ ProtectedRoute.jsx   # Chặn route admin nếu chưa đăng nhập
-   │  ├─ Brand.jsx            # Logo/thương hiệu
-   │  ├─ Icon.jsx             # Bọc Material Symbols
-   │  ├─ StateBlock.jsx       # Khối Loading / Error / Empty dùng chung
-   │  ├─ guest/GuestFooter.jsx
-   │  └─ quiz/QuizResult.jsx  # Màn kết quả quiz
-   ├─ pages/
-   │  ├─ TopicsPage.jsx       # Danh sách chủ đề + tìm kiếm
-   │  ├─ TopicDetailPage.jsx  # Video + Markdown + mục lục
-   │  ├─ QuizPage.jsx         # Làm & nộp quiz + kết quả
-   │  ├─ NotFoundPage.jsx     # Trang 404
-   │  ├─ ArchitecturePage.jsx # Sơ đồ kiến trúc (hiển thị trong khu admin)
-   │  └─ admin/
-   │     ├─ LoginPage.jsx          # Đăng nhập admin
-   │     ├─ DashboardPage.jsx      # Thống kê + biểu đồ
-   │     ├─ TopicsAdminPage.jsx    # CRUD chủ đề
-   │     ├─ QuestionsAdminPage.jsx # CRUD + nhập hàng loạt câu hỏi
-   │     └─ SystemStatusPage.jsx   # Health check backend/DB
-   ├─ App.jsx / main.jsx  # Khởi tạo app & định tuyến (react-router)
-   └─ index.css           # Tailwind directives + base + style Markdown
+                      Internet
+                         │
+                ┌────────▼────────┐        Public subnet (2 AZ)
+                │  ALB (Ingress)  │        + NAT Gateway
+                └───┬─────────┬───┘
+            /api/*  │         │  /*
+        ┌───────────▼──┐   ┌──▼───────────┐     Private-app subnet (2 AZ)
+        │ backend (x2) │   │ frontend (x2)│     EKS managed node group
+        │ Flask :8000  │   │ nginx  :8080 │     (t3.small x2, HPA 2-4 pod)
+        └──────┬───────┘   └──────────────┘
+               │ TLS (verify-full)
+        ┌──────▼───────┐                        Private-db subnet (2 AZ)
+        │ RDS Postgres │                        không ra Internet
+        └──────────────┘
 ```
 
-> **Phân tầng:** `pages` (giao diện) → gọi `hooks` (logic/state) → gọi `api/client.js` (HTTP) → backend.
-> `pages/*` nay đã có UI đầy đủ; logic vẫn tách riêng trong `hooks/` và `lib/`.
+| Tầng | Công nghệ | Ghi chú |
+|---|---|---|
+| Frontend | React, Vite, Tailwind, nginx | Image chạy user không phải root (nginx-unprivileged) |
+| Backend | Flask, SQLAlchemy, Alembic, gunicorn | `/api/health` (readiness), `/api/live` (liveness) |
+| Database | PostgreSQL 15 | Local: container. AWS: RDS trong subnet riêng |
+| Hạ tầng | Terraform | VPC 2 AZ, EKS 1.35, RDS, ECR, IAM (IRSA, GitHub OIDC), state trên S3 |
+| Triển khai | Helm chart `charts/devops-app` | Hook migrate (trước) và seed (sau), HPA, PDB, NetworkPolicy |
+| CI/CD | GitHub Actions | CI: test, lint, build, validate. CD: build, push ECR, `helm upgrade` |
 
-## Chạy frontend (dev)
+## Cấu trúc repo
 
-Yêu cầu Node.js 18+.
+```
+backend/            Flask API, migrations (Alembic), CLI database, test
+frontend/           React + Vite, Dockerfile, nginx.conf (xem frontend/README.md)
+charts/devops-app/  Helm chart (values.yaml, values-local.yaml, values-eks.yaml)
+deploy/             compose/nginx.conf (proxy giả lập ALB), local/postgres.yaml (DB cho cluster local)
+infra/              Terraform: VPC, EKS, RDS, IAM...   (infra/bootstrap = bucket S3 chứa state)
+k8s/legacy/         Manifest thô cũ, đã thay bằng Helm chart (không dùng để deploy)
+scripts/            deploy-eks.sh, teardown-eks.sh
+.github/workflows/  ci.yml, cd.yml
+docs/               database-integration-review.md (báo cáo tích hợp các nhánh)
+compose.yaml        Chạy cả 3 tầng ở local
+```
+
+## 1. Chạy local bằng Docker Compose (nhanh nhất)
+
+Cần: Docker.
 
 ```bash
-cd frontend
-npm install
-npm run dev
+cp .env.example .env     # điền DB_PASSWORD, SECRET_KEY, JWT_SECRET_KEY, ADMIN_PASSWORD (>= 12 ký tự)
+docker compose up -d --build
 ```
 
-App chạy tại `http://localhost:3000`.
-
-## Build & kiểm tra chất lượng
+Mở **http://localhost:8080**. Thứ tự khởi động: `postgres` → `migrate` → `seed` → `backend` → `proxy`. Đăng nhập admin bằng `ADMIN_USERNAME` / `ADMIN_PASSWORD` trong `.env`.
 
 ```bash
-npm run lint      # ESLint — kỳ vọng 0 lỗi
-npm run build     # Vite build ra thư mục dist/
-npm run preview   # Chạy thử bản build (có SPA fallback), mặc định http://localhost:4173
+docker compose down        # dừng, giữ dữ liệu
+docker compose down -v     # dừng và xoá cả dữ liệu
 ```
 
-## Chạy bằng Docker (giống môi trường EKS)
+## 2. Chạy trên Kubernetes local (Docker Desktop) bằng Helm
+
+Cần: Docker Desktop (bật **Settings → Kubernetes**), `kubectl`, `helm` (3.14+).
 
 ```bash
-cd frontend
-docker build -t devopslearn-frontend:dev .
-docker run --rm -p 8080:80 devopslearn-frontend:dev
+# Ingress controller (Traefik) và metrics-server (cho HPA)
+helm repo add traefik https://traefik.github.io/charts
+helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+helm upgrade --install traefik traefik/traefik --version 42.4.1 -n traefik --create-namespace --wait
+helm upgrade --install metrics-server metrics-server/metrics-server --version 3.14.0 \
+  -n kube-system --set 'args={--kubelet-insecure-tls}' --wait
+
+# Image local (cùng tên với compose: nt548-backend:dev, nt548-frontend:dev)
+docker compose build backend frontend
+
+# Secret: tạo file .env.k8s.local (bị .gitignore chặn) gồm các dòng
+#   DB_USER=devops_app  DB_PASSWORD=...  SECRET_KEY=...  JWT_SECRET_KEY=...
+#   ADMIN_USERNAME=admin  ADMIN_PASSWORD=...        (mỗi biến một dòng)
+kubectl create namespace devops-app
+kubectl -n devops-app create secret generic app-secrets --from-env-file=.env.k8s.local
+
+# Database local (thay cho RDS) rồi ứng dụng
+kubectl apply -f deploy/local/postgres.yaml
+helm upgrade --install devops-app charts/devops-app -n devops-app \
+  -f charts/devops-app/values-local.yaml --wait --timeout 5m
 ```
 
-Kiểm tra tại `http://localhost:8080`:
+Mở **http://localhost**. Kiểm tra: `kubectl -n devops-app get pods,hpa,ingress`.
+Gỡ: `helm uninstall devops-app -n devops-app && kubectl delete ns devops-app`.
 
-- `/healthz` → trả `ok` (health check cho ALB).
-- Vào thẳng `/admin` hoặc `/topics/docker` rồi **refresh (F5)** → **không 404** (SPA fallback trong `nginx.conf`).
+> **Vì sao dùng Traefik mà không dùng ingress-nginx?** Ingress NGINX đã ngừng bảo trì từ 03/2026 (không còn bản vá bảo mật).
 
-> Container frontend **không tự proxy `/api`**. Trên EKS, **ALB Ingress** định tuyến theo path:
-> `/api/*` → Service backend, còn `/*` → Service frontend (container này).
+## 3. Triển khai lên AWS EKS
 
-## Kết nối backend
+**Chi phí: khoảng 0,24 USD/giờ khi bật** (xem mục Chi phí). Chỉ bật khi cần, và **luôn chạy teardown sau buổi làm việc**.
 
-- Khi dev, mọi request `/api/...` được **proxy** sang Flask ở `http://localhost:8000`
-  (cấu hình trong `vite.config.js`), nên không lo CORS.
-- **Phải bật backend trước** (xem phần chạy backend bên dưới).
-- Mặc định `VITE_API_BASE` để trống → gọi same-origin, để nginx/Ingress lo `/api`.
-  Chỉ đặt `VITE_API_BASE` khi muốn trỏ thẳng API sang domain khác (tạo file `.env` từ `.env.example`).
-
-## Kiểm tra đã kết nối backend chưa
-
-1. Bật backend (port 8000) và frontend (port 3000).
-2. Gọi `curl http://localhost:3000/api/topics` → nhận được **danh sách topic** (đi qua proxy) là OK.
-3. Hoặc mở DevTools (F12) → tab **Network**, các request `/api/...` trả về **200**.
-
----
-
-## Chạy backend (tham khảo — phần của nhóm backend)
-
-Yêu cầu Python 3.12+ và PostgreSQL đang chạy.
+Cần (máy Linux): AWS CLI đã đăng nhập, `terraform >= 1.10`, `helm >= 3.14`, `kubectl`, `docker`, `python3`, `git`.
 
 ```bash
-cd backend
-python -m venv .venv
-.venv\Scripts\activate          # Windows
-pip install -r requirements-dev.txt
-copy ..\.env.example ..\.env     # sửa DB_*, SECRET_KEY, JWT_SECRET_KEY
-flask --app run.py db upgrade    # tạo bảng (migration)
-python -m database seed          # nạp dữ liệu mẫu
-python -m database create-admin --username admin
-flask --app run.py run --port 8000
+# 1. State trên S3 (làm một lần)
+terraform -chdir=infra/bootstrap init
+terraform -chdir=infra/bootstrap apply
+terraform -chdir=infra/bootstrap output -raw state_bucket      # tên bucket
+
+# 2. Cấu hình (các file này bị .gitignore chặn, không commit)
+cp infra/terraform.example.tfvars infra/terraform.tfvars        # điền db_password, alert_email
+cp infra/backend.hcl.example infra/backend.hcl                  # điền tên bucket ở bước 1
+
+# 3. Hạ tầng: VPC, EKS, RDS, ECR, IAM (mất 15-20 phút)
+terraform -chdir=infra init -backend-config=backend.hcl
+terraform -chdir=infra plan
+terraform -chdir=infra apply
+
+# 4. Ứng dụng: build + push image, cài ALB Controller, tạo Secret, cài chart, in địa chỉ ALB
+bash scripts/deploy-eks.sh
 ```
 
-API chạy tại `http://localhost:8000` (ví dụ `GET /api/health`, `GET /api/topics`).
+`deploy-eks.sh` chạy lại an toàn. Chỉ cập nhật image mà không cài lại add-on: `bash scripts/deploy-eks.sh --tag <tag>`; hoặc dùng workflow **CD** trên GitHub (xem mục CI/CD).
+
+### Gỡ toàn bộ (bắt buộc sau mỗi buổi)
+
+```bash
+bash scripts/teardown-eks.sh
+```
+
+Script xoá Ingress, **chờ ALB biến mất**, gỡ ALB Controller rồi mới `terraform destroy`. Thứ tự này quan trọng: ALB do controller tạo, không nằm trong state Terraform, nếu `destroy` trước thì ALB thành mồ côi, vẫn tính tiền và chặn việc xoá VPC. Cuối cùng script kiểm tra không còn NAT Gateway, Elastic IP, Load Balancer, EKS, RDS. Bucket state ở `infra/bootstrap` được giữ lại (chi phí gần như bằng 0).
+
+## 4. CI/CD (GitHub Actions)
+
+- **CI** (`ci.yml`, mỗi Pull Request và push lên `main`): pytest với PostgreSQL thật, lint và build frontend, build 2 image Docker, `terraform fmt/validate`, `helm lint` và `kubeconform`, `docker compose config`.
+- **CD** (`cd.yml`, chạy tay hoặc khi bật biến `DEPLOY_ENABLED=true`): đăng nhập AWS bằng **OIDC** (không lưu access key), build và push image lên ECR theo commit SHA, `helm upgrade --atomic` (lỗi thì tự rollback). Chỉ **nâng cấp** release đã được cài bằng `deploy-eks.sh`.
+- Cần GitHub Secret `AWS_ROLE_ARN` = output `github_actions_role_arn` của Terraform.
+
+## Chi phí ước lượng (us-east-1)
+
+| Thành phần | USD/giờ |
+|---|---|
+| EKS control plane | 0,10 |
+| 2 × t3.small | ~0,042 |
+| NAT Gateway | ~0,045 |
+| ALB | ~0,025 |
+| RDS db.t3.micro | ~0,018 |
+| Public IPv4, EBS | ~0,015 |
+| **Tổng** | **~0,24** |
+
+Một buổi 4 giờ khoảng 1 USD; **bỏ quên cả tháng khoảng 175 USD**. Đơn giá là ước lượng, kiểm lại bằng AWS Pricing Calculator. Terraform tạo sẵn cảnh báo AWS Budgets qua email.
+
+## Xử lý sự cố nhanh
+
+| Hiện tượng | Nguyên nhân thường gặp | Cách xử lý |
+|---|---|---|
+| Pod `ImagePullBackOff` | Sai tên/tag image, hoặc image chưa push lên ECR | `kubectl -n devops-app describe pod <tên>`, xem mục Events |
+| Pod kẹt `ContainerCreating` | Thiếu ConfigMap `rds-ca` hoặc Secret `app-secrets` | Chạy `deploy-eks.sh` (script tạo cả hai) |
+| `/api/*` trả 503, trang chủ vẫn lên | Backend mất kết nối DB (readiness rớt, pod không bị restart) | Kiểm tra RDS và security group; xem `kubectl -n devops-app logs deploy/backend` |
+| Ingress không có địa chỉ | ALB Controller chưa chạy hoặc thiếu quyền IAM | `kubectl -n kube-system logs deploy/aws-load-balancer-controller` |
+| `helm upgrade` treo lâu | Job migrate lỗi (image sai, DB chưa lên) | `kubectl -n devops-app logs job/db-migrate`; `--atomic` sẽ rollback sau timeout |
+| Teardown báo ALB chưa mất | Controller chưa kịp xoá | Chờ thêm; xem log controller; **không** gỡ controller thủ công trước khi ALB mất |
+
+## Phân công
+
+> TODO: điền tên thành viên và phần phụ trách thật trước khi nộp.
+
+| Thành viên | Phần phụ trách |
+|---|---|
+| `<Họ tên>` | Backend (Flask, database, migration) |
+| `<Họ tên>` | Frontend (React) |
+| `<Họ tên>` | Kubernetes và Helm |
+| `<Họ tên>` | Hạ tầng Terraform (VPC, EKS, RDS, ECR) |
+| `<Họ tên>` | CI/CD |
+
+## Ảnh minh chứng
+
+> TODO: chụp sau lần deploy thật và lưu vào `docs/images/`.
+
+- [ ] `terraform apply` thành công (danh sách tài nguyên)
+- [ ] `kubectl get nodes,pods,hpa,ingress -n devops-app`
+- [ ] Trang web mở qua địa chỉ ALB (trang chủ, quiz, trang admin)
+- [ ] HPA tự tăng số pod khi chạy tải
+- [ ] Pipeline CI xanh và CD thành công trên GitHub Actions
+- [ ] Màn hình Billing/Budgets và kết quả `teardown-eks.sh` (không còn tài nguyên)
+
+## Tài liệu liên quan
+
+- [backend/database/README.md](backend/database/README.md): database, migration, tài khoản admin
+- [frontend/README.md](frontend/README.md): chi tiết frontend
