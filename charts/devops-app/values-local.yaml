@@ -1,0 +1,20 @@
+# Docker Desktop Kubernetes. Dùng image build local (nt548-*:dev), Postgres chạy trong cluster.
+config:
+  DB_HOST: postgres
+  DB_SSLMODE: disable
+  DB_SSLROOTCERT: ""
+
+rdsCa:
+  enabled: false
+
+database:
+  externalName: ""
+
+ingress:
+  className: traefik
+
+networkPolicy:
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: traefik

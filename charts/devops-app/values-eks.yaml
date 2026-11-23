@@ -1,0 +1,49 @@
+# AWS EKS. scripts/deploy-eks.sh ghi đè các giá trị phụ thuộc môi trường bằng --set:
+#   config.DB_HOST, database.externalName   = output `rds_address` của Terraform
+#   backend.image.repository / frontend.image.repository = URL ECR (output `ecr_repository_urls`)
+#   backend.image.tag / frontend.image.tag  = tag theo commit SHA
+#   networkPolicy.ingressFrom[0].ipBlock.cidr = CIDR của VPC
+config:
+  DB_HOST: REPLACE_WITH_RDS_ENDPOINT   # ghi đè bằng --set; để nguyên placeholder thì deploy sẽ lỗi rõ ràng ở DB
+  DB_SSLMODE: verify-full
+  DB_SSLROOTCERT: /certs/global-bundle.pem
+
+rdsCa:
+  enabled: true
+
+database:
+  externalName: REPLACE_WITH_RDS_ENDPOINT
+
+backend:
+  image:
+    repository: REPLACE_WITH_ECR_URL/nt548-group6/backend
+    tag: REPLACE_WITH_TAG
+    pullPolicy: IfNotPresent
+  service:
+    annotations:
+      alb.ingress.kubernetes.io/healthcheck-path: /api/health
+
+frontend:
+  image:
+    repository: REPLACE_WITH_ECR_URL/nt548-group6/frontend
+    tag: REPLACE_WITH_TAG
+    pullPolicy: IfNotPresent
+  service:
+    annotations:
+      alb.ingress.kubernetes.io/healthcheck-path: /healthz
+
+ingress:
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    alb.ingress.kubernetes.io/group.name: devops-app
+    alb.ingress.kubernetes.io/success-codes: "200"
+
+# Với ALB target-type ip, traffic đến từ ENI của ALB trong VPC (không phải từ pod),
+# nên nguồn cho phép là CIDR của VPC.
+networkPolicy:
+  ingressFrom:
+    - ipBlock:
+        cidr: 10.0.0.0/16

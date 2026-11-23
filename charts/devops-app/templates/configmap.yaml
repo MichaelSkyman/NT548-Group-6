@@ -1,0 +1,22 @@
+# ConfigMap là Helm hook (weight -10) để tồn tại TRƯỚC Job migrate (pre-install hook).
+# Hook chạy trước mọi tài nguyên thường nên nếu ConfigMap là tài nguyên thường thì Job migrate
+# sẽ chạy khi chưa có cấu hình. Hệ quả: `helm uninstall` không xoá ConfigMap này
+# (Helm không theo dõi hook); teardown-eks.sh xoá cả namespace nên không để lại rác.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "devops-app.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation
+data:
+  DB_HOST: {{ required "config.DB_HOST is required (local: postgres, EKS: RDS endpoint)" .Values.config.DB_HOST | quote }}
+  {{- range $key, $value := .Values.config }}
+  {{- if and (ne $key "DB_HOST") (ne (toString $value) "") }}
+  {{ $key }}: {{ $value | toString | quote }}
+  {{- end }}
+  {{- end }}

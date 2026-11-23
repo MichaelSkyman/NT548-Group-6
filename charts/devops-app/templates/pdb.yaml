@@ -1,0 +1,20 @@
+{{- if .Values.pdb.enabled }}
+# PodDisruptionBudget: khi admin drain node (nâng cấp, scale-in), luôn giữ lại ít nhất
+# `minAvailable` pod mỗi ứng dụng để không bị gián đoạn.
+{{- range $name := list "backend" "frontend" }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app: {{ $name }}
+    {{- include "devops-app.labels" $ | nindent 4 }}
+spec:
+  minAvailable: {{ $.Values.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      app: {{ $name }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,106 @@
+# Giá trị mặc định dùng chung. Ghi đè bằng values-local.yaml hoặc values-eks.yaml.
+#
+# QUY ƯỚC QUAN TRỌNG:
+#   - Chart KHÔNG chứa Secret và KHÔNG chứa database.
+#   - Secret `app-secrets` phải tạo TRƯỚC bằng kubectl (xem NOTES.txt và README gốc).
+#   - Namespace do `helm ... -n devops-app` quyết định (.Release.Namespace).
+
+# Tên Secret chứa DB_USER, DB_PASSWORD, SECRET_KEY, JWT_SECRET_KEY, ADMIN_USERNAME, ADMIN_PASSWORD
+secretName: app-secrets
+
+# Nội dung ConfigMap `app-config`. Giá trị rỗng ("") thì không ghi vào ConfigMap.
+config:
+  DB_HOST: ""              # BẮT BUỘC: local = postgres, EKS = địa chỉ RDS thật
+  DB_PORT: "5432"
+  DB_NAME: devops_learning
+  DB_SSLMODE: verify-full
+  DB_SSLROOTCERT: /certs/global-bundle.pem
+  ALLOWED_ORIGINS: "*"     # frontend và API cùng origin qua Ingress
+  FLASK_DEBUG: "0"
+  JWT_ACCESS_TOKEN_MINUTES: "60"
+  QUIZ_SIZE: "15"
+  QUIZ_TOKEN_MAX_AGE: "3600"
+
+# Service tên `postgres` là địa chỉ DB mà pod chờ (wait-for-db).
+database:
+  serviceName: postgres
+  port: 5432
+  # EKS: đặt địa chỉ RDS để chart tạo Service ExternalName `postgres` trỏ tới đó.
+  # Local: để trống, vì deploy/local/postgres.yaml đã tạo Service `postgres`.
+  externalName: ""
+
+# CA bundle của RDS (TLS verify-full). ConfigMap `rds-ca` KHÔNG do chart tạo;
+# scripts/deploy-eks.sh tạo trước bằng: kubectl create configmap rds-ca --from-file=global-bundle.pem
+rdsCa:
+  enabled: false
+  configMapName: rds-ca
+  mountPath: /certs
+
+backend:
+  image:
+    repository: nt548-backend
+    tag: dev
+    pullPolicy: IfNotPresent
+  replicas: 2
+  port: 8000
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+  service:
+    annotations: {}
+
+frontend:
+  image:
+    repository: nt548-frontend
+    tag: dev
+    pullPolicy: IfNotPresent
+  replicas: 2
+  port: 8080            # nginx-unprivileged nghe 8080 (không chạy root)
+  servicePort: 80
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: 300m, memory: 256Mi }
+  service:
+    annotations: {}
+
+# Image nhỏ chạy wait-for-db
+waitForDbImage: busybox:1.36
+
+# Image build amd64 nên ép node amd64 (tránh node Graviton/ARM)
+nodeSelector:
+  kubernetes.io/arch: amd64
+
+# Job migrate (pre-install/pre-upgrade) và Job seed (post-install/post-upgrade)
+migrate:
+  enabled: true
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+seed:
+  enabled: true
+  backoffLimit: 3
+  activeDeadlineSeconds: 300
+
+ingress:
+  enabled: true
+  className: ""         # local: traefik, EKS: alb
+  host: ""              # để trống = nhận mọi host
+  annotations: {}
+
+# Cần metrics-server. Khi bật, Deployment bỏ trường replicas để HPA quyết định.
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+# Chỉ cho phép traffic tới pod từ các nguồn khai báo dưới đây.
+# Lưu ý: Docker Desktop KHÔNG thực thi NetworkPolicy. Trên EKS phải bật
+# network policy của VPC CNI (enableNetworkPolicy) thì mới có tác dụng.
+networkPolicy:
+  enabled: true
+  # Danh sách `from` theo cú pháp NetworkPolicy (namespaceSelector / ipBlock).
+  ingressFrom: []

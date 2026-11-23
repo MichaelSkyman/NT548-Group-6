@@ -1,0 +1,58 @@
+{{- if .Values.migrate.enabled }}
+# Chạy Alembic migration TRƯỚC khi cài/nâng cấp app. Helm chờ Job xong mới tiếp tục.
+# Chạy lại an toàn (idempotent). Job bị xoá sau khi thành công (hook-succeeded);
+# Job lỗi được giữ lại để xem log: kubectl -n <ns> logs job/db-migrate
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migrate
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: db-migrate
+    {{- include "devops-app.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.migrate.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.migrate.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        app: db-migrate
+    spec:
+      restartPolicy: Never
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "devops-app.backendPodSecurityContext" . | nindent 8 }}
+      initContainers:
+        {{- include "devops-app.waitForDb" . | nindent 8 }}
+      containers:
+        - name: migrate
+          # Cùng image với backend (WORKDIR chứa alembic.ini và migrations/)
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          command: ["python", "-m", "database", "migrate"]
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: {{ .Values.secretName }}
+          securityContext:
+            {{- include "devops-app.containerSecurityContext" . | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- include "devops-app.rdsCaMount" . | nindent 12 }}
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- include "devops-app.rdsCaVolume" . | nindent 8 }}
+{{- end }}

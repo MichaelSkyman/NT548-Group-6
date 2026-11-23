@@ -1,0 +1,51 @@
+{{- if .Values.networkPolicy.enabled }}
+# Backend chỉ nhận traffic từ Ingress/ALB (networkPolicy.ingressFrom) và từ pod frontend.
+# Frontend chỉ nhận traffic từ Ingress/ALB. Mọi nguồn khác (pod lạ trong cluster) bị chặn.
+# Docker Desktop không thực thi NetworkPolicy; trên EKS cần bật enableNetworkPolicy của VPC CNI.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "devops-app.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: backend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+        {{- with .Values.networkPolicy.ingressFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.backend.port }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "devops-app.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend
+  policyTypes:
+    - Ingress
+  ingress:
+    - {{- with .Values.networkPolicy.ingressFrom }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.frontend.port }}
+{{- end }}

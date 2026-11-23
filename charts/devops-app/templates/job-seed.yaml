@@ -1,0 +1,57 @@
+{{- if .Values.seed.enabled }}
+# Nạp dữ liệu mẫu và tạo admin SAU khi cài/nâng cấp. Idempotent: không nhân đôi dữ liệu,
+# không ghi đè tài khoản admin đã có. Admin chỉ được tạo khi Secret có ADMIN_PASSWORD.
+# Dùng `python seed.py` (không phải `python -m database seed`) vì chỉ seed.py tạo admin.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-seed
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: db-seed
+    {{- include "devops-app.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.seed.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.seed.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        app: db-seed
+    spec:
+      restartPolicy: Never
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "devops-app.backendPodSecurityContext" . | nindent 8 }}
+      initContainers:
+        {{- include "devops-app.waitForDb" . | nindent 8 }}
+      containers:
+        - name: seed
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          command: ["python", "seed.py"]
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: {{ .Values.secretName }}
+          securityContext:
+            {{- include "devops-app.containerSecurityContext" . | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- include "devops-app.rdsCaMount" . | nindent 12 }}
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- include "devops-app.rdsCaVolume" . | nindent 8 }}
+{{- end }}

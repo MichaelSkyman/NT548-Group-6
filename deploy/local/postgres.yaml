@@ -1,0 +1,88 @@
+# PostgreSQL cho cluster LOCAL (Docker Desktop), thay cho RDS. Không dùng trên EKS.
+# Phải apply TRƯỚC khi cài Helm chart: Job migrate chạy như pre-install hook và cần DB sẵn sàng.
+# Cần Secret `app-secrets` (keys DB_USER, DB_PASSWORD) đã tồn tại trong namespace devops-app:
+#   kubectl -n devops-app create secret generic app-secrets --from-env-file=.env.k8s.local
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  namespace: devops-app
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: devops-app
+  labels:
+    app: postgres
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate        # DB 1 replica dùng PVC ReadWriteOnce: dừng pod cũ rồi mới chạy pod mới
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15.20
+          ports:
+            - containerPort: 5432
+              name: pg
+          env:
+            - name: POSTGRES_DB
+              value: devops_learning
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: DB_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: DB_PASSWORD
+            # Thư mục con để tránh lỗi "directory not empty" (lost+found) khi gắn volume
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-data
+---
+# Tên `postgres` giống Service ExternalName trên EKS, nên app không cần biết mình đang chạy ở đâu.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: devops-app
+  labels:
+    app: postgres
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+  ports:
+    - name: pg
+      port: 5432
+      targetPort: pg

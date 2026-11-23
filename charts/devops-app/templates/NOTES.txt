@@ -1,0 +1,15 @@
+DevOps Learning Platform đã được cài: release "{{ .Release.Name }}" trong namespace "{{ .Release.Namespace }}".
+
+Kiểm tra:
+  kubectl -n {{ .Release.Namespace }} get pods,svc,ingress,hpa
+  kubectl -n {{ .Release.Namespace }} logs job/db-migrate      # chỉ còn nếu Job lỗi
+{{- if eq .Values.ingress.className "alb" }}
+
+Địa chỉ ALB (mất 2-3 phút mới có):
+  kubectl -n {{ .Release.Namespace }} get ingress devops-app-ingress -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+{{- else }}
+
+Truy cập (qua Traefik trên Docker Desktop):  http://localhost
+{{- end }}
+
+Lưu ý: Secret "{{ .Values.secretName }}" phải tồn tại trước khi cài (chart không tạo Secret).

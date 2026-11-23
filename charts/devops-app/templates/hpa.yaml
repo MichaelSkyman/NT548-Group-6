@@ -1,0 +1,29 @@
+{{- if .Values.hpa.enabled }}
+# Tự tăng/giảm số pod theo CPU. Cần metrics-server; thiếu thì TARGETS hiện <unknown>.
+# Ngưỡng 70% tính trên `requests.cpu` của container, không phải trên limits.
+{{- range $name := list "backend" "frontend" }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app: {{ $name }}
+    {{- include "devops-app.labels" $ | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $name }}
+  minReplicas: {{ $.Values.hpa.minReplicas }}
+  maxReplicas: {{ $.Values.hpa.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $.Values.hpa.targetCPUUtilizationPercentage }}
+{{- end }}
+{{- end }}
