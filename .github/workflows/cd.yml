@@ -1,0 +1,105 @@
+# CD: build image, đẩy lên ECR theo commit SHA, rồi nâng cấp release Helm trên EKS.
+#
+# ĐIỀU KIỆN ĐỂ CHẠY ĐƯỢC (làm một lần, xem mục CI/CD trong README.md):
+#   1. Hạ tầng đã apply và app đã được cài lần đầu bằng scripts/deploy-eks.sh
+#      (workflow này chỉ NÂNG CẤP release `devops-app` có sẵn, không cài mới).
+#   2. GitHub Secrets: AWS_ROLE_ARN = output `github_actions_role_arn` của Terraform.
+#   3. (Tuỳ chọn) GitHub Variables: AWS_REGION (mặc định us-east-1).
+#
+# Mặc định chỉ chạy khi bấm tay (workflow_dispatch). Muốn tự deploy mỗi lần push lên main:
+# đặt GitHub Variable DEPLOY_ENABLED = true. Cụm EKS chỉ bật khi cần demo để đỡ tốn tiền,
+# nên KHÔNG bật mặc định (cụm tắt thì pipeline sẽ đỏ vô ích).
+name: CD
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+# Chỉ một lần deploy tại một thời điểm, và không huỷ lần đang chạy giữa chừng
+# (huỷ helm upgrade giữa chừng có thể để lại release ở trạng thái pending).
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # cần để GitHub cấp token OIDC cho AWS
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  # Phải khớp var.project_name trong Terraform: tên cluster và tiền tố repo ECR
+  PROJECT: nt548-group6
+  NAMESPACE: devops-app
+  RELEASE: devops-app
+
+jobs:
+  deploy:
+    name: Build, push ECR, helm upgrade
+    runs-on: ubuntu-latest
+    # Bấm tay thì luôn chạy; push lên main chỉ chạy khi đã bật DEPLOY_ENABLED
+    if: github.event_name == 'workflow_dispatch' || vars.DEPLOY_ENABLED == 'true'
+    # Lưu ý: KHÔNG thêm `environment:` vào job này. Khi có environment, claim `sub` của token OIDC
+    # đổi thành "repo:...:environment:<tên>" và trust policy trong infra/iam_github_oidc.tf
+    # (chỉ cho ref:refs/heads/main) sẽ từ chối.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Tag = commit SHA nên mỗi bản deploy truy ngược được về đúng commit, và không dùng :latest.
+      # Build amd64 vì Helm chart ép nodeSelector kubernetes.io/arch=amd64.
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.ecr.outputs.registry }}/${{ env.PROJECT }}/backend:${{ github.sha }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.ecr.outputs.registry }}/${{ env.PROJECT }}/frontend:${{ github.sha }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.20.0
+
+      - name: Kubeconfig
+        run: aws eks update-kubeconfig --region "$AWS_REGION" --name "$PROJECT"
+
+      # --reset-then-reuse-values: giữ các giá trị lần cài đầu (địa chỉ RDS, URL ECR, CIDR VPC...)
+      # nhưng vẫn nhận giá trị mặc định mới nếu chart có thêm khoá. Nhờ vậy pipeline không cần biết
+      # địa chỉ RDS và không cần quyền đọc RDS. Chỉ ghi đè tag image.
+      # --atomic: nâng cấp lỗi (kể cả Job migrate lỗi) thì tự rollback về bản trước.
+      - name: helm upgrade
+        run: |
+          helm upgrade "$RELEASE" charts/devops-app \
+            --namespace "$NAMESPACE" \
+            --reset-then-reuse-values \
+            --set backend.image.tag="${{ github.sha }}" \
+            --set frontend.image.tag="${{ github.sha }}" \
+            --atomic --timeout 10m
+
+      - name: Verify
+        run: |
+          kubectl -n "$NAMESPACE" rollout status deploy/backend --timeout=120s
+          kubectl -n "$NAMESPACE" rollout status deploy/frontend --timeout=120s
+          kubectl -n "$NAMESPACE" get pods,ingress
