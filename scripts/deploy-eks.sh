@@ -9,7 +9,11 @@
 #   5. Tạo namespace, Secret app-secrets, ConfigMap rds-ca
 #   6. Cài chart devops-app, rồi in địa chỉ ALB
 #
-# Chạy từ thư mục gốc của repo:   scripts/deploy-eks.sh [--skip-images] [--tag TAG]
+#   0. (đầu) preflight.sh kiểm công cụ, đăng nhập AWS, hạ tầng đã apply
+#   7. (cuối) smoke-test.sh kiểm hệ thống qua địa chỉ ALB
+#
+# Chạy từ thư mục gốc của repo:
+#   bash scripts/deploy-eks.sh [--skip-images] [--tag TAG] [--skip-preflight] [--skip-smoke]
 # Chạy lại nhiều lần an toàn (idempotent). Muốn gỡ mọi thứ: scripts/teardown-eks.sh
 set -euo pipefail
 
@@ -25,16 +29,21 @@ RDS_CA_URL="https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem"
 export AWS_REGION AWS_DEFAULT_REGION="$AWS_REGION"
 
 SKIP_IMAGES=0
+SKIP_PREFLIGHT=0
+SKIP_SMOKE=0
 IMAGE_TAG=""
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
-  sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --skip-images) SKIP_IMAGES=1 ;;
+    --skip-preflight) SKIP_PREFLIGHT=1 ;;
+    --skip-smoke) SKIP_SMOKE=1 ;;
     --tag) IMAGE_TAG="${2:?--tag cần một giá trị}"; shift ;;
     -h | --help) usage 0 ;;
     *) echo "Tham số lạ: $1" >&2; usage 1 ;;
@@ -45,7 +54,13 @@ done
 log() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 die() { printf '\033[1;31mLỖI: %s\033[0m\n' "$*" >&2; exit 1; }
 
-# ---------- 0. Kiểm tra công cụ ----------
+# ---------- 0. Preflight và kiểm tra công cụ ----------
+if [ "$SKIP_PREFLIGHT" -eq 0 ]; then
+  log "Preflight"
+  bash "$SCRIPT_DIR/preflight.sh" --stage deploy \
+    || die "Preflight thất bại. Sửa các mục FAIL ở trên rồi chạy lại (hoặc --skip-preflight, không khuyến nghị)."
+fi
+
 log "Kiểm tra công cụ"
 for tool in aws terraform kubectl helm docker curl python3 git; do
   command -v "$tool" > /dev/null || die "Thiếu '$tool' trong PATH"
@@ -192,5 +207,23 @@ else
   echo "  kubectl -n kube-system logs deploy/aws-load-balancer-controller"
 fi
 echo "Admin: tài khoản 'admin', mật khẩu trong $SECRETS_FILE"
+
+# ---------- 8. Smoke test ----------
+SMOKE_FAILED=0
+if [ -n "$ALB_HOST" ] && [ "$SKIP_SMOKE" -eq 0 ]; then
+  log "Smoke test qua ALB (chờ tối đa 7 phút cho target healthy)"
+  # Đọc thông tin admin trong subshell: không export ra môi trường của script, không in ra màn hình
+  (
+    ADMIN_USERNAME="$(sed -n 's/^ADMIN_USERNAME=//p' "$SECRETS_FILE" | head -n 1)"
+    ADMIN_PASSWORD="$(sed -n 's/^ADMIN_PASSWORD=//p' "$SECRETS_FILE" | head -n 1)"
+    export ADMIN_USERNAME ADMIN_PASSWORD
+    bash "$SCRIPT_DIR/smoke-test.sh" "http://$ALB_HOST" --wait 420
+  ) || SMOKE_FAILED=1
+fi
+
 echo
 echo "NHẮC: cụm đang tính tiền khoảng 0,24 USD/giờ. Xong việc thì chạy scripts/teardown-eks.sh"
+if [ "$SMOKE_FAILED" -eq 1 ]; then
+  printf '\033[1;33mCẢNH BÁO: smoke test thất bại. Ứng dụng đã được cài nhưng chưa chạy đúng; xem kết quả phía trên.\033[0m\n' >&2
+  exit 3
+fi
