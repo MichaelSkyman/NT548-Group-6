@@ -141,6 +141,16 @@ jobs:
             echo "::endgroup::"
           done
 
+  shell:
+    name: Shell scripts (shellcheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # shellcheck có sẵn trên runner ubuntu-latest
+      - run: shellcheck -x scripts/*.sh
+      # Cú pháp bash (shellcheck không bắt hết mọi lỗi cú pháp)
+      - run: for f in scripts/*.sh; do bash -n "$f"; done
+
   compose:
     name: Compose config
     runs-on: ubuntu-latest

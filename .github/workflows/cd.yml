@@ -103,3 +103,8 @@ jobs:
           kubectl -n "$NAMESPACE" rollout status deploy/backend --timeout=120s
           kubectl -n "$NAMESPACE" rollout status deploy/frontend --timeout=120s
           kubectl -n "$NAMESPACE" get pods,ingress
+          # Kiểm tra từ bên ngoài qua ALB (không đăng nhập admin: workflow không giữ mật khẩu admin)
+          HOST="$(kubectl -n "$NAMESPACE" get ingress devops-app-ingress \
+            -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')"
+          test -n "$HOST" || { echo "Chưa có địa chỉ ALB trên Ingress"; exit 1; }
+          bash scripts/smoke-test.sh "http://$HOST" --wait 300
