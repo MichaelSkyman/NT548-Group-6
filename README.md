@@ -122,6 +122,19 @@ bash scripts/deploy-eks.sh
 
 `deploy-eks.sh` chạy lại an toàn. Chỉ cập nhật image mà không cài lại add-on: `bash scripts/deploy-eks.sh --tag <tag>`; hoặc dùng workflow **CD** trên GitHub (xem mục CI/CD).
 
+### Công cụ kiểm tra và đo
+
+Tất cả đều là script bash trong `scripts/`, xem `--help` của từng script.
+
+| Script | Dùng khi nào |
+|---|---|
+| `bash scripts/preflight.sh --stage apply` | Trước `terraform apply`: kiểm công cụ, đăng nhập AWS, `terraform.tfvars` và `backend.hcl` đã điền, bucket state truy cập được |
+| `bash scripts/aws-audit.sh` | Trước khi bắt đầu và sau mỗi buổi: quét tài nguyên còn tính tiền ở hai region, ước lượng USD/giờ. Chỉ đọc, không xoá gì |
+| `bash scripts/smoke-test.sh <url>` | Sau khi deploy: kiểm trang chủ, health, topic, quiz không lộ đáp án, phân quyền, đăng nhập admin (đặt `ADMIN_USERNAME` và `ADMIN_PASSWORD` nếu muốn). Dùng được với Compose (`http://localhost:8080`), cluster local (`http://localhost`) và ALB |
+| `bash scripts/loadtest.sh <url>` | Minh chứng HPA: sinh tải bằng k6 và lưu dòng thời gian HPA vào `docs/images/`. Chạy ngắn trên EKS vì tải kéo thêm pod và có thể cần thêm node |
+
+`deploy-eks.sh` tự gọi `preflight.sh` ở đầu và `smoke-test.sh` ở cuối.
+
 ### Gỡ toàn bộ (bắt buộc sau mỗi buổi)
 
 ```bash
